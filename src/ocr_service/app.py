@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import Annotated, cast
 
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import FastAPI, File, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from google.cloud import vision_v1
@@ -91,10 +91,14 @@ def create_app(
     @app.post(
         "/extract-text",
         response_model=SuccessResponse,
+        response_model_exclude_none=True,
         responses={code: {"model": ErrorResponse} for code in (400, 413, 415, 422, 500, 503, 504)},
     )
     async def extract_text(
-        request: Request, image: Annotated[UploadFile, File(description="JPEG image, up to 10 MiB")]
+        request: Request,
+        image: Annotated[UploadFile, File(description="JPEG image, up to 10 MiB")],
+        include_metadata: Annotated[bool, Query(alias="metadata")] = False,
+        normalize: bool = False,
     ) -> SuccessResponse:
         request.state.started = time.perf_counter()
         uploads = (await request.form()).getlist("image")
@@ -104,7 +108,9 @@ def create_app(
                     await upload.close()
             raise MalformedRequest
         service = cast(ExtractTextService, request.app.state.extract_service)
-        response, retry_count = await service.execute(image)
+        response, retry_count = await service.execute(
+            image, include_metadata=include_metadata, normalize=normalize
+        )
         logger.info(
             json.dumps(
                 {

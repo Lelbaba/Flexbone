@@ -15,7 +15,25 @@ def test_extract_success(client: TestClient, jpeg: bytes) -> None:
     assert response.json()["confidence"] == 0.95
     assert response.json()["success"] is True
     assert response.json()["processing_time_ms"] >= 0
+    assert "metadata" not in response.json()
+    assert "normalized_text" not in response.json()
     assert "app;dur=" in response.headers["server-timing"]
+
+
+def test_opt_in_metadata_and_normalization(client: TestClient, jpeg: bytes) -> None:
+    response = client.post(
+        "/extract-text?metadata=true&normalize=true",
+        files={"image": ("x.jpg", jpeg, "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["normalized_text"] == "Hello world"
+    assert response.json()["metadata"] == {
+        "width": 16,
+        "height": 16,
+        "byte_size": len(jpeg),
+        "color_mode": "RGB",
+        "format": "JPEG",
+    }
 
 
 def test_missing_file(client: TestClient) -> None:
