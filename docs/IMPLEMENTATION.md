@@ -6,33 +6,7 @@ This document explains how Flexbone OCR is structured, why its tools were select
 
 The diagram distinguishes the active request path from the provisioned edge path that is still in preview.
 
-```mermaid
-flowchart LR
-    user[Browser user] -->|HTTPS ocr.lelbaba.top| hosting[Firebase Hosting]
-    apiClient[API client] -->|HTTPS api.ocr.lelbaba.top| hosting
-    hosting -->|Static HTML, CSS, JS| frontend[OCR test frontend]
-    frontend -->|Relative multipart requests| rewrite[Firebase Cloud Run rewrite]
-    apiClient -->|API paths| rewrite
-    rewrite --> run[Cloud Run<br/>FastAPI container]
-
-    run --> validator[Bounded upload validation<br/>Pillow verification]
-    validator --> service[Extraction services]
-    service --> adapter[Google Vision adapter]
-    adapter -->|DOCUMENT_TEXT_DETECTION| vision[Cloud Vision API]
-    run --> logs[Cloud Logging]
-
-    github[GitHub Actions] -->|OIDC token| wif[Workload Identity Federation]
-    wif --> deployer[Deployment service account]
-    deployer --> registry[Artifact Registry]
-    registry --> run
-    run -.uses ADC as.-> runtime[Runtime service account]
-
-    dns[Future API DNS] -.not cut over.-> lb[Global external HTTPS load balancer]
-    lb -.preview path.-> armor[Cloud Armor]
-    armor -.-> backend[Backend service]
-    backend -.-> neg[Serverless NEG]
-    neg -.-> run
-```
+![Flexbone OCR overall system architecture](assets/system-architecture.svg)
 
 Solid arrows are active production traffic. Dotted arrows are provisioned but not traffic-serving as of 2026-08-22: the load-balancer certificate is active and Cloud Armor rules are in preview, but `api.ocr.lelbaba.top` still resolves to Firebase Hosting and Cloud Run ingress still allows direct internet traffic.
 
@@ -40,24 +14,7 @@ Solid arrows are active production traffic. Dotted arrows are provisioned but no
 
 Infrastructure concerns end at the ASGI boundary. Inside the container, every OCR request follows the same dependency direction:
 
-```mermaid
-flowchart LR
-    request[HTTP multipart request] --> middleware[Request guards and context]
-    middleware --> route[Thin FastAPI route]
-    route --> usecase[Application service]
-    usecase --> validation[Image validation]
-    validation --> port[OCRProvider port]
-    port --> visionAdapter[GoogleVisionProvider]
-    visionAdapter --> visionAPI[Cloud Vision]
-    visionAPI --> mapper[Response mapping]
-    mapper --> response[Typed JSON response]
-
-    exceptions[Application exceptions] --> translator[Global error translation]
-    middleware -.-> exceptions
-    validation -.-> exceptions
-    visionAdapter -.-> exceptions
-    translator --> response
-```
+![FastAPI OCR request lifecycle](assets/request-flow.svg)
 
 The dependency direction is inward toward domain contracts. The application service knows the `OCRProvider` protocol, not the Google client implementation, which keeps business behavior testable without cloud credentials.
 

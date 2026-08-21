@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="680" viewBox="0 0 1600 680" role="img" aria-labelledby="title desc">
+  <title id="title">FastAPI OCR request flow</title>
+  <desc id="desc">A multipart request passes through middleware, routes, validation, application services, an OCR provider port, the Google Vision adapter, and response mapping, with centralized error translation.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#17231d" flood-opacity="0.08"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="#2e6b4c"/></marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="#a65c4c"/></marker>
+    <style>
+      .title{font:700 34px Inter,Arial,sans-serif;fill:#17231d;letter-spacing:-1px}.subtitle{font:400 15px Inter,Arial,sans-serif;fill:#657069}.lane{fill:#fbfaf6;stroke:#dedcd2;stroke-width:1.5}.lane-title{font:600 11px Inter,Arial,sans-serif;fill:#66726b;letter-spacing:1.5px}.card{fill:#fff;stroke:#d7d5ca;stroke-width:1.5;filter:url(#shadow)}.green{fill:#f1f8e8;stroke:#9fbe83}.dark{fill:#193b2c;stroke:#193b2c}.red{fill:#fff2ed;stroke:#d5a69b}.label{font:600 14px Inter,Arial,sans-serif;fill:#17231d}.label-light{font:600 14px Inter,Arial,sans-serif;fill:#fff}.meta{font:400 10px Inter,Arial,sans-serif;fill:#6c7771}.meta-light{font:400 10px Inter,Arial,sans-serif;fill:#d6e5dd}.step{font:700 9px Inter,Arial,sans-serif;fill:#2e6b4c;letter-spacing:1px}.line{fill:none;stroke:#2e6b4c;stroke-width:3;marker-end:url(#arrow)}.error-line{fill:none;stroke:#a65c4c;stroke-width:2.5;stroke-dasharray:7 6;marker-end:url(#arrow-red)}.return-line{fill:none;stroke:#8a958e;stroke-width:2;stroke-dasharray:5 5;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1600" height="680" rx="24" fill="#f4f1e8"/>
+  <text class="title" x="54" y="62">FastAPI request lifecycle</text>
+  <text class="subtitle" x="54" y="88">Transport, application, domain port, infrastructure adapter, and one consistent failure path</text>
+
+  <rect class="lane" x="40" y="124" width="1520" height="306" rx="18"/>
+  <text class="lane-title" x="64" y="153">SUCCESS PATH</text>
+
+  <g transform="translate(68 198)">
+    <rect class="card" width="168" height="120" rx="14"/>
+    <text class="step" x="20" y="28">01 · INPUT</text>
+    <text class="label" x="20" y="57">Multipart request</text>
+    <text class="meta" x="20" y="82">One image or batch</text>
+    <text class="meta" x="20" y="100">Query options</text>
+  </g>
+  <g transform="translate(284 198)">
+    <rect class="card green" width="176" height="120" rx="14"/>
+    <text class="step" x="20" y="28">02 · GUARD</text>
+    <text class="label" x="20" y="57">ASGI middleware</text>
+    <text class="meta" x="20" y="82">Body limit</text>
+    <text class="meta" x="20" y="100">Request ID + timing</text>
+  </g>
+  <g transform="translate(508 198)">
+    <rect class="card" width="156" height="120" rx="14"/>
+    <text class="step" x="20" y="28">03 · API</text>
+    <text class="label" x="20" y="57">Thin route</text>
+    <text class="meta" x="20" y="82">Multipart cardinality</text>
+    <text class="meta" x="20" y="100">Option mapping</text>
+  </g>
+  <g transform="translate(712 198)">
+    <rect class="card green" width="176" height="120" rx="14"/>
+    <text class="step" x="20" y="28">04 · VALIDATE</text>
+    <text class="label" x="20" y="57">Image validator</text>
+    <text class="meta" x="20" y="82">Bounded read + format</text>
+    <text class="meta" x="20" y="100">Pixels + corruption</text>
+  </g>
+  <g transform="translate(936 198)">
+    <rect class="card dark" width="182" height="120" rx="14"/>
+    <text class="step" x="20" y="28" fill="#badd9d">05 · USE CASE</text>
+    <text class="label-light" x="20" y="57">Extraction service</text>
+    <text class="meta-light" x="20" y="82">Timing + concurrency</text>
+    <text class="meta-light" x="20" y="100">Normalize + metadata</text>
+  </g>
+  <g transform="translate(1166 198)">
+    <rect class="card green" width="160" height="120" rx="14"/>
+    <text class="step" x="20" y="28">06 · PORT</text>
+    <text class="label" x="20" y="57">OCRProvider</text>
+    <text class="meta" x="20" y="82">Typed protocol</text>
+    <text class="meta" x="20" y="100">Vendor-neutral</text>
+  </g>
+  <g transform="translate(1374 198)">
+    <rect class="card" width="158" height="120" rx="14"/>
+    <text class="step" x="20" y="28">07 · ADAPTER</text>
+    <text class="label" x="20" y="57">Google Vision</text>
+    <text class="meta" x="20" y="82">Async SDK + retries</text>
+    <text class="meta" x="20" y="100">Text + confidence</text>
+  </g>
+
+  <path class="line" d="M236 258H284"/><path class="line" d="M460 258H508"/><path class="line" d="M664 258H712"/><path class="line" d="M888 258H936"/><path class="line" d="M1118 258H1166"/><path class="line" d="M1326 258H1374"/>
+  <path class="return-line" d="M1453 318V367H586V318"/>
+  <text class="meta" x="927" y="387">typed success DTO returns through route and middleware</text>
+
+  <rect class="lane" x="40" y="458" width="1520" height="168" rx="18"/>
+  <text class="lane-title" x="64" y="487">FAILURE PATH</text>
+  <rect class="card red" x="370" y="518" width="330" height="72" rx="14"/>
+  <text class="label" x="394" y="548">Typed application exceptions</text>
+  <text class="meta" x="394" y="570">Stable code · safe message · HTTP status</text>
+  <rect class="card red" x="778" y="518" width="330" height="72" rx="14"/>
+  <text class="label" x="802" y="548">Central error translator</text>
+  <text class="meta" x="802" y="570">One JSON envelope · no vendor details</text>
+  <rect class="card" x="1186" y="518" width="282" height="72" rx="14"/>
+  <text class="label" x="1210" y="548">Sanitized HTTP response</text>
+  <text class="meta" x="1210" y="570">Request ID + Server-Timing</text>
+  <path class="error-line" d="M700 554H778"/>
+  <path class="error-line" d="M1108 554H1186"/>
+  <path class="error-line" d="M800 318V476Q800 494 782 494H535V518"/>
+  <path class="error-line" d="M1027 318V476Q1027 494 1009 494H535V518"/>
+  <path class="error-line" d="M1453 318V476Q1453 494 1435 494H535V518"/>
+</svg>

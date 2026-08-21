@@ -382,17 +382,7 @@ bash scripts/bootstrap-edge.sh | tee /tmp/flexbone-bootstrap-edge.out
 
 It creates or updates:
 
-```mermaid
-flowchart LR
-    ip[Global static IPv4] --> rule[HTTPS forwarding rule :443]
-    rule --> proxy[Target HTTPS proxy]
-    cert[Certificate map<br/>Google-managed certificate] --> proxy
-    proxy --> map[URL map]
-    map --> backend[Backend service<br/>logging enabled]
-    armor[Cloud Armor policy] --> backend
-    backend --> neg[Regional serverless NEG]
-    neg --> run[Cloud Run service]
-```
+![Staged API edge infrastructure](assets/edge-infrastructure.svg)
 
 The policy rules are:
 

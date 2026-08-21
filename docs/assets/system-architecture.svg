@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
+  <title id="title">Flexbone OCR overall system architecture</title>
+  <desc id="desc">Active Firebase to Cloud Run OCR path, staged load balancer and Cloud Armor path, Google Vision, logging, and GitHub delivery infrastructure.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#17231d" flood-opacity="0.08"/>
+    </filter>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 10 5 0 10z" fill="#2e6b4c"/>
+    </marker>
+    <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 10 5 0 10z" fill="#b47a21"/>
+    </marker>
+    <marker id="arrow-slate" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0 10 5 0 10z" fill="#66726b"/>
+    </marker>
+    <style>
+      .title{font:700 34px Inter,Arial,sans-serif;fill:#17231d;letter-spacing:-1px}.subtitle{font:400 15px Inter,Arial,sans-serif;fill:#657069}.zone{fill:#fbfaf6;stroke:#dedcd2;stroke-width:1.5}.zone-title{font:600 12px Inter,Arial,sans-serif;fill:#66726b;letter-spacing:1.7px}.card{fill:#fff;stroke:#d8d6cc;stroke-width:1.5;filter:url(#shadow)}.card-green{fill:#f3f8eb;stroke:#a9c68d;stroke-width:1.5;filter:url(#shadow)}.card-amber{fill:#fff8e9;stroke:#d7ae68;stroke-width:1.5;filter:url(#shadow)}.card-dark{fill:#193b2c;stroke:#193b2c;stroke-width:1.5;filter:url(#shadow)}.label{font:600 15px Inter,Arial,sans-serif;fill:#17231d}.label-sm{font:600 13px Inter,Arial,sans-serif;fill:#17231d}.label-light{font:600 15px Inter,Arial,sans-serif;fill:#fff}.meta{font:400 11px Inter,Arial,sans-serif;fill:#6c7771}.meta-light{font:400 11px Inter,Arial,sans-serif;fill:#d6e5dd}.badge{font:700 9px Inter,Arial,sans-serif;letter-spacing:1.2px}.active{fill:#2e6b4c}.staged{fill:#a86f18}.line-active{fill:none;stroke:#2e6b4c;stroke-width:3;marker-end:url(#arrow-green)}.line-stage{fill:none;stroke:#b47a21;stroke-width:3;stroke-dasharray:9 8;marker-end:url(#arrow-amber)}.line-support{fill:none;stroke:#66726b;stroke-width:2.5;marker-end:url(#arrow-slate)}.line-thin{fill:none;stroke:#a6aea9;stroke-width:1.5;marker-end:url(#arrow-slate)}.path-label{font:500 10px Inter,Arial,sans-serif;fill:#53705f}.path-stage{font:500 10px Inter,Arial,sans-serif;fill:#9b671c}
+    </style>
+  </defs>
+
+  <rect width="1600" height="1050" rx="24" fill="#f4f1e8"/>
+  <text class="title" x="54" y="62">Flexbone OCR — system architecture</text>
+  <text class="subtitle" x="54" y="88">Active production path, staged edge controls, managed OCR, and keyless delivery</text>
+  <g transform="translate(1248 50)">
+    <line x1="0" y1="0" x2="34" y2="0" class="line-active"/>
+    <text class="badge active" x="47" y="4">ACTIVE</text>
+    <line x1="122" y1="0" x2="156" y2="0" class="line-stage"/>
+    <text class="badge staged" x="169" y="4">STAGED</text>
+  </g>
+
+  <rect class="zone" x="40" y="120" width="1520" height="190" rx="18"/>
+  <text class="zone-title" x="64" y="149">STAGED EDGE CONTROL PLANE</text>
+
+  <rect class="card-amber" x="72" y="177" width="210" height="88" rx="14"/>
+  <text class="label" x="96" y="210">API DNS</text>
+  <text class="meta" x="96" y="234">Future A record to static IP</text>
+  <rect x="230" y="190" width="30" height="18" rx="9" fill="#f3d89f"/>
+  <text class="badge staged" x="237" y="203">DNS</text>
+
+  <rect class="card-amber" x="348" y="177" width="220" height="88" rx="14"/>
+  <text class="label" x="372" y="210">HTTPS load balancer</text>
+  <text class="meta" x="372" y="234">Global IP + managed TLS</text>
+
+  <rect class="card-amber" x="634" y="177" width="210" height="88" rx="14"/>
+  <text class="label" x="658" y="210">Cloud Armor</text>
+  <text class="meta" x="658" y="234">Per-IP rules in preview</text>
+
+  <rect class="card-amber" x="910" y="177" width="220" height="88" rx="14"/>
+  <text class="label" x="934" y="210">Backend service</text>
+  <text class="meta" x="934" y="234">Logging + serverless NEG</text>
+
+  <rect class="card-amber" x="1196" y="177" width="280" height="88" rx="14"/>
+  <text class="label" x="1220" y="210">Cloud Run entry</text>
+  <text class="meta" x="1220" y="234">Ingress cutover not applied</text>
+
+  <path class="line-stage" d="M282 221H348"/>
+  <path class="line-stage" d="M568 221H634"/>
+  <path class="line-stage" d="M844 221H910"/>
+  <path class="line-stage" d="M1130 221H1196"/>
+
+  <rect class="zone" x="40" y="338" width="1520" height="420" rx="18"/>
+  <text class="zone-title" x="64" y="367">ACTIVE REQUEST PATH</text>
+
+  <rect class="card" x="72" y="412" width="214" height="104" rx="14"/>
+  <circle cx="103" cy="444" r="13" fill="#dce9d0"/>
+  <path d="M97 444h12M103 438v12" stroke="#2e6b4c" stroke-width="2" stroke-linecap="round"/>
+  <text class="label" x="128" y="449">Browser</text>
+  <text class="meta" x="96" y="478">ocr.lelbaba.top</text>
+  <text class="meta" x="96" y="496">Static tester + API calls</text>
+
+  <rect class="card" x="72" y="565" width="214" height="104" rx="14"/>
+  <rect x="91" y="590" width="25" height="20" rx="4" fill="#dce9d0"/>
+  <path d="M96 615h15" stroke="#2e6b4c" stroke-width="2"/>
+  <text class="label" x="128" y="604">API client</text>
+  <text class="meta" x="96" y="633">api.ocr.lelbaba.top</text>
+  <text class="meta" x="96" y="651">curl, SDK, evaluator</text>
+
+  <rect class="card-green" x="366" y="412" width="250" height="257" rx="16"/>
+  <text class="label" x="392" y="447">Firebase Hosting</text>
+  <text class="meta" x="392" y="470">Managed TLS + CDN</text>
+  <rect x="392" y="501" width="198" height="61" rx="11" fill="#fff" stroke="#cbd9bd"/>
+  <text class="label-sm" x="410" y="526">Static frontend</text>
+  <text class="meta" x="410" y="546">HTML · CSS · JavaScript</text>
+  <rect x="392" y="580" width="198" height="61" rx="11" fill="#fff" stroke="#cbd9bd"/>
+  <text class="label-sm" x="410" y="605">Cloud Run rewrite</text>
+  <text class="meta" x="410" y="625">Unmatched API paths</text>
+
+  <rect class="card-dark" x="696" y="392" width="492" height="309" rx="18"/>
+  <text class="label-light" x="724" y="429">Cloud Run · FastAPI container</text>
+  <text class="meta-light" x="724" y="451">1 worker · concurrency 8 · max 5 instances</text>
+  <rect x="724" y="480" width="198" height="71" rx="11" fill="#28543e" stroke="#3f7057"/>
+  <text class="label-light" x="742" y="507">ASGI boundary</text>
+  <text class="meta-light" x="742" y="528">Body guard · request ID · routes</text>
+  <rect x="950" y="480" width="210" height="71" rx="11" fill="#28543e" stroke="#3f7057"/>
+  <text class="label-light" x="968" y="507">Validation</text>
+  <text class="meta-light" x="968" y="528">Bounded reads · Pillow verify</text>
+  <rect x="724" y="577" width="198" height="78" rx="11" fill="#28543e" stroke="#3f7057"/>
+  <text class="label-light" x="742" y="605">Application services</text>
+  <text class="meta-light" x="742" y="626">Single · batch · timing</text>
+  <text class="meta-light" x="742" y="642">Semaphore · normalization</text>
+  <rect x="950" y="577" width="210" height="78" rx="11" fill="#28543e" stroke="#3f7057"/>
+  <text class="label-light" x="968" y="605">Vision adapter</text>
+  <text class="meta-light" x="968" y="626">Async client · retries</text>
+  <text class="meta-light" x="968" y="642">Text + confidence mapping</text>
+
+  <rect class="card" x="1268" y="412" width="238" height="116" rx="14"/>
+  <text class="label" x="1294" y="449">Cloud Vision API</text>
+  <text class="meta" x="1294" y="474">DOCUMENT_TEXT_DETECTION</text>
+  <text class="meta" x="1294" y="494">Managed OCR inference</text>
+
+  <rect class="card" x="1268" y="576" width="238" height="93" rx="14"/>
+  <text class="label" x="1294" y="612">Cloud Logging</text>
+  <text class="meta" x="1294" y="637">Safe structured events only</text>
+
+  <path class="line-active" d="M286 464H366"/>
+  <text class="path-label" x="302" y="449">HTTPS</text>
+  <path class="line-active" d="M286 617H366"/>
+  <text class="path-label" x="302" y="602">HTTPS</text>
+  <path class="line-active" d="M616 611H656Q676 611 676 591V548Q676 528 696 528"/>
+  <text class="path-label" x="626" y="596">rewrite</text>
+  <path class="line-active" d="M1188 516H1232Q1250 516 1250 486Q1250 470 1268 470"/>
+  <text class="path-label" x="1197" y="501">ADC</text>
+  <path class="line-support" d="M1188 622H1268"/>
+  <text class="path-label" x="1204" y="607">stdout</text>
+  <path class="line-thin" d="M922 516H950"/>
+  <path class="line-thin" d="M1055 551V577"/>
+  <path class="line-thin" d="M922 616H950"/>
+
+  <rect class="zone" x="40" y="786" width="1520" height="216" rx="18"/>
+  <text class="zone-title" x="64" y="815">KEYLESS DELIVERY PATH</text>
+
+  <rect class="card" x="72" y="856" width="198" height="88" rx="14"/>
+  <text class="label" x="96" y="889">GitHub Actions</text>
+  <text class="meta" x="96" y="914">Commit-SHA container build</text>
+
+  <rect class="card-green" x="334" y="856" width="230" height="88" rx="14"/>
+  <text class="label" x="358" y="889">Workload Identity</text>
+  <text class="meta" x="358" y="914">Repository-bound OIDC</text>
+
+  <rect class="card-green" x="628" y="856" width="230" height="88" rx="14"/>
+  <text class="label" x="652" y="889">Deployer identity</text>
+  <text class="meta" x="652" y="914">Short-lived credentials</text>
+
+  <rect class="card" x="922" y="856" width="230" height="88" rx="14"/>
+  <text class="label" x="946" y="889">Artifact Registry</text>
+  <text class="meta" x="946" y="914">Immutable Docker image</text>
+
+  <rect class="card" x="1216" y="856" width="260" height="88" rx="14"/>
+  <text class="label" x="1240" y="889">Cloud Run revision</text>
+  <text class="meta" x="1240" y="914">Deploy + health smoke test</text>
+
+  <path class="line-support" d="M270 900H334"/>
+  <text class="path-label" x="280" y="884">OIDC</text>
+  <path class="line-support" d="M564 900H628"/>
+  <path class="line-support" d="M858 900H922"/>
+  <path class="line-support" d="M1152 900H1216"/>
+</svg>

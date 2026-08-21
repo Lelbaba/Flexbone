@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
+  <title id="title">Flexbone OCR staged edge infrastructure</title>
+  <desc id="desc">Certificate Manager and DNS feed a global HTTPS load balancer, Cloud Armor, backend service, serverless NEG, and regional Cloud Run service.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="11" flood-color="#17231d" flood-opacity="0.08"/></filter>
+    <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="#b47a21"/></marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="#2e6b4c"/></marker>
+    <style>
+      .title{font:700 34px Inter,Arial,sans-serif;fill:#17231d;letter-spacing:-1px}.subtitle{font:400 15px Inter,Arial,sans-serif;fill:#657069}.zone{fill:#fbfaf6;stroke:#dedcd2;stroke-width:1.5}.zone-title{font:600 11px Inter,Arial,sans-serif;fill:#66726b;letter-spacing:1.5px}.card{fill:#fff;stroke:#d7d5ca;stroke-width:1.5;filter:url(#shadow)}.amber{fill:#fff8e9;stroke:#d7ae68}.green{fill:#f1f8e8;stroke:#9fbe83}.dark{fill:#193b2c;stroke:#193b2c}.label{font:600 14px Inter,Arial,sans-serif;fill:#17231d}.label-light{font:600 14px Inter,Arial,sans-serif;fill:#fff}.meta{font:400 10px Inter,Arial,sans-serif;fill:#6c7771}.meta-light{font:400 10px Inter,Arial,sans-serif;fill:#d6e5dd}.tag{font:700 9px Inter,Arial,sans-serif;fill:#9b671c;letter-spacing:1px}.line{fill:none;stroke:#b47a21;stroke-width:3;stroke-dasharray:9 7;marker-end:url(#arrow-amber)}.cert-line{fill:none;stroke:#2e6b4c;stroke-width:2.5;marker-end:url(#arrow-green)}.fine{font:500 10px Inter,Arial,sans-serif;fill:#9b671c}
+    </style>
+  </defs>
+  <rect width="1600" height="720" rx="24" fill="#f4f1e8"/>
+  <text class="title" x="54" y="62">Staged API edge infrastructure</text>
+  <text class="subtitle" x="54" y="88">Global managed TLS and distributed throttling in front of the regional serverless service</text>
+  <rect x="1370" y="47" width="150" height="30" rx="15" fill="#f3d89f"/>
+  <text class="tag" x="1397" y="66">PREVIEW MODE</text>
+
+  <rect class="zone" x="40" y="122" width="310" height="530" rx="18"/>
+  <text class="zone-title" x="64" y="151">PUBLIC DNS + CERTIFICATE</text>
+  <rect class="card amber" x="72" y="198" width="246" height="94" rx="14"/>
+  <text class="label" x="96" y="231">API hostname</text>
+  <text class="meta" x="96" y="254">Future A → global static IPv4</text>
+  <text class="meta" x="96" y="272">Not authoritative yet</text>
+  <rect class="card green" x="72" y="347" width="246" height="112" rx="14"/>
+  <text class="label" x="96" y="380">DNS authorization</text>
+  <text class="meta" x="96" y="403">Per-project CNAME</text>
+  <text class="meta" x="96" y="421">Certificate issuance + renewal</text>
+  <text class="meta" x="96" y="439">Status: authorized</text>
+  <rect class="card green" x="72" y="514" width="246" height="94" rx="14"/>
+  <text class="label" x="96" y="547">Certificate Manager</text>
+  <text class="meta" x="96" y="570">Certificate map + hostname entry</text>
+  <text class="meta" x="96" y="588">Status: active</text>
+
+  <rect class="zone" x="382" y="122" width="776" height="530" rx="18"/>
+  <text class="zone-title" x="406" y="151">GLOBAL GOOGLE CLOUD EDGE</text>
+  <rect class="card amber" x="420" y="198" width="202" height="94" rx="14"/>
+  <text class="label" x="444" y="231">Forwarding rule</text>
+  <text class="meta" x="444" y="254">Global IPv4 · TCP 443</text>
+  <text class="meta" x="444" y="272">Premium network tier</text>
+  <rect class="card amber" x="682" y="198" width="202" height="94" rx="14"/>
+  <text class="label" x="706" y="231">HTTPS proxy</text>
+  <text class="meta" x="706" y="254">TLS termination</text>
+  <text class="meta" x="706" y="272">Certificate map attached</text>
+  <rect class="card amber" x="944" y="198" width="176" height="94" rx="14"/>
+  <text class="label" x="968" y="231">URL map</text>
+  <text class="meta" x="968" y="254">All paths</text>
+  <text class="meta" x="968" y="272">One backend</text>
+
+  <rect class="card amber" x="508" y="382" width="244" height="122" rx="14"/>
+  <text class="label" x="532" y="415">Cloud Armor policy</text>
+  <text class="meta" x="532" y="440">Single: 10 / minute / IP</text>
+  <text class="meta" x="532" y="458">Batch: 2 / minute / IP</text>
+  <text class="meta" x="532" y="476">Exceed action: 429</text>
+  <rect class="card amber" x="820" y="382" width="244" height="122" rx="14"/>
+  <text class="label" x="844" y="415">Backend service</text>
+  <text class="meta" x="844" y="440">External managed scheme</text>
+  <text class="meta" x="844" y="458">Request logging: 100%</text>
+  <text class="meta" x="844" y="476">Armor policy attached</text>
+
+  <path class="line" d="M318 245H420"/>
+  <path class="line" d="M622 245H682"/>
+  <path class="line" d="M884 245H944"/>
+  <path class="line" d="M1032 292V332Q1032 350 1014 350H942V382"/>
+  <path class="line" d="M752 443H820"/>
+  <path class="cert-line" d="M318 561H638Q658 561 658 541V316Q658 296 678 276"/>
+  <path class="cert-line" d="M195 459V514"/>
+
+  <rect class="zone" x="1190" y="122" width="370" height="530" rx="18"/>
+  <text class="zone-title" x="1214" y="151">ASIA-SOUTH1 · SERVERLESS</text>
+  <rect class="card amber" x="1228" y="294" width="294" height="102" rx="14"/>
+  <text class="label" x="1252" y="328">Serverless NEG</text>
+  <text class="meta" x="1252" y="352">Regional pointer to Cloud Run</text>
+  <text class="meta" x="1252" y="373">No VM health check or firewall rule</text>
+  <rect class="card dark" x="1228" y="458" width="294" height="116" rx="14"/>
+  <text class="label-light" x="1252" y="492">Cloud Run · flexbone-ocr</text>
+  <text class="meta-light" x="1252" y="517">1 CPU · 512 MiB · concurrency 8</text>
+  <text class="meta-light" x="1252" y="537">Min 0 · max 5 · timeout 60s</text>
+  <text class="meta-light" x="1252" y="557">Ingress restriction pending cutover</text>
+
+  <path class="line" d="M1064 443H1146Q1166 443 1166 423V365Q1166 345 1186 345H1228"/>
+  <path class="line" d="M1375 396V458"/>
+  <text class="fine" x="1082" y="428">serverless backend</text>
+
+  <rect x="403" y="558" width="720" height="52" rx="11" fill="#fff3d8" stroke="#dfbd7e"/>
+  <circle cx="432" cy="584" r="10" fill="#d79b37"/>
+  <text x="429" y="588" font-family="Inter,Arial,sans-serif" font-size="12" font-weight="700" fill="#fff">!</text>
+  <text class="fine" x="454" y="580">Safe cutover gate: direct LB tests pass, frontend uses the API hostname, CORS is enabled,</text>
+  <text class="fine" x="454" y="596">Firebase rewrite is removed, Armor is enforced, and Cloud Run accepts only load-balanced ingress.</text>
+</svg>
