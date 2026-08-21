@@ -1,8 +1,9 @@
 import json
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 from typing import Annotated, cast
 
 from fastapi import FastAPI, File, Query, Request, UploadFile
@@ -12,18 +13,17 @@ from google.cloud import vision_v1
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import Settings
-from .domain import (
+from .middleware import RequestBodyLimitMiddleware, RequestContextMiddleware
+from .models import (
+    AppError,
     BatchResponse,
     ErrorDetail,
     ErrorResponse,
     HealthResponse,
-    OCRProvider,
     SuccessResponse,
 )
-from .errors import AppError, InvalidBatch, MalformedRequest
-from .middleware import RequestBodyLimitMiddleware, RequestContextMiddleware
-from .service import ExtractBatchService, ExtractTextService
-from .vision import GoogleVisionProvider
+from .processing import OCRFunction, close_uploads, extract_batch, extract_one
+from .vision import extract_text as extract_with_vision
 
 logger = logging.getLogger("ocr_service")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -37,39 +37,40 @@ def _error(error: AppError, started: float) -> JSONResponse:
     return JSONResponse(status_code=error.status_code, content=body.model_dump())
 
 
-def create_app(
-    provider_factory: Callable[[], OCRProvider] | None = None,
-    settings: Settings | None = None,
-) -> FastAPI:
+def _log_failure(request: Request, error: AppError) -> None:
+    logger.warning(
+        json.dumps(
+            {
+                "event": "request_failed",
+                "request_id": request.state.request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": error.status_code,
+                "error_class": error.code,
+            }
+        )
+    )
+
+
+def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None) -> FastAPI:
     config = settings or Settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        provider = (
-            provider_factory()
-            if provider_factory
-            else GoogleVisionProvider(
-                vision_v1.ImageAnnotatorAsyncClient(),
-                timeout=config.vision_timeout_seconds,
-                max_retries=config.vision_max_retries,
-            )
-        )
-        app.state.provider = provider
-        extract_service = ExtractTextService(
-            provider, config.max_image_bytes, config.max_image_pixels
-        )
-        app.state.extract_service = extract_service
-        app.state.extract_batch_service = ExtractBatchService(
-            extract_service=extract_service,
-            max_image_bytes=config.max_image_bytes,
-            max_image_pixels=config.max_image_pixels,
-            max_images=config.max_batch_images,
-            max_combined_bytes=config.max_batch_image_bytes,
-            max_concurrency=config.batch_max_concurrency,
-            timeout_seconds=config.batch_timeout_seconds,
+        if ocr is not None:
+            app.state.ocr = ocr
+            yield
+            return
+
+        client = vision_v1.ImageAnnotatorAsyncClient()
+        app.state.ocr = partial(
+            extract_with_vision,
+            client,
+            deadline_seconds=config.vision_timeout_seconds,
+            max_retries=config.vision_max_retries,
         )
         yield
-        await provider.close()
+        await client.transport.close()  # type: ignore[no-untyped-call]
 
     app = FastAPI(
         title="Flexbone OCR API",
@@ -90,26 +91,41 @@ def create_app(
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-        logger.warning(json.dumps({"event": "request_failed", "error_class": exc.code}))
-        return _error(exc, getattr(request.state, "started", time.perf_counter()))
+        _log_failure(request, exc)
+        return _error(exc, request.state.started)
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        error = InvalidBatch() if request.url.path == "/extract-text/batch" else MalformedRequest()
-        return _error(error, getattr(request.state, "started", time.perf_counter()))
+        error = AppError(
+            "invalid_batch" if request.url.path == "/extract-text/batch" else "malformed_request"
+        )
+        _log_failure(request, error)
+        return _error(error, request.state.started)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        if exc.status_code in {400, 404, 405}:
-            return _error(
-                MalformedRequest(), getattr(request.state, "started", time.perf_counter())
-            )
-        return _error(AppError(), getattr(request.state, "started", time.perf_counter()))
+        code = {400: "malformed_request", 404: "not_found", 405: "method_not_allowed"}.get(
+            exc.status_code, "internal_error"
+        )
+        error = AppError(code)
+        _log_failure(request, error)
+        return _error(error, request.state.started)
 
     @app.exception_handler(Exception)
     async def unexpected_handler(request: Request, exc: Exception) -> JSONResponse:
-        logger.exception(json.dumps({"event": "request_failed", "error_class": type(exc).__name__}))
-        return _error(AppError(), getattr(request.state, "started", time.perf_counter()))
+        logger.exception(
+            json.dumps(
+                {
+                    "event": "request_failed",
+                    "request_id": request.state.request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": 500,
+                    "error_class": type(exc).__name__,
+                }
+            )
+        )
+        return _error(AppError("internal_error"), request.state.started)
 
     @app.get("/health", response_model=HealthResponse)
     @app.get("/healthz", response_model=HealthResponse, include_in_schema=False)
@@ -133,22 +149,28 @@ def create_app(
         include_metadata: Annotated[bool, Query(alias="metadata")] = False,
         normalize: bool = False,
     ) -> SuccessResponse:
-        request.state.started = time.perf_counter()
         uploads = (await request.form()).getlist("image")
         if len(uploads) != 1:
-            for upload in uploads:
-                if isinstance(upload, UploadFile):
-                    await upload.close()
-            raise MalformedRequest
-        service = cast(ExtractTextService, request.app.state.extract_service)
-        response, retry_count = await service.execute(
-            image, include_metadata=include_metadata, normalize=normalize
+            await close_uploads([item for item in uploads if isinstance(item, UploadFile)])
+            raise AppError("malformed_request")
+
+        ocr_function = cast(OCRFunction, request.app.state.ocr)
+        response, retry_count, metadata = await extract_one(
+            image,
+            ocr_function,
+            config,
+            include_metadata=include_metadata,
+            normalize=normalize,
+            started=request.state.started,
         )
         logger.info(
             json.dumps(
                 {
                     "event": "ocr_complete",
+                    "request_id": request.state.request_id,
                     "status": 200,
+                    "image_size_bytes": metadata.byte_size,
+                    "image_format": metadata.format,
                     "latency_ms": response.processing_time_ms,
                     "retry_count": retry_count,
                 }
@@ -170,18 +192,25 @@ def create_app(
         include_metadata: Annotated[bool, Query(alias="metadata")] = False,
         normalize: bool = False,
     ) -> BatchResponse:
-        request.state.started = time.perf_counter()
-        service = cast(ExtractBatchService, request.app.state.extract_batch_service)
-        response, retry_count = await service.execute(
-            images, include_metadata=include_metadata, normalize=normalize
+        ocr_function = cast(OCRFunction, request.app.state.ocr)
+        response, retry_count, image_bytes, image_formats = await extract_batch(
+            images,
+            ocr_function,
+            config,
+            include_metadata=include_metadata,
+            normalize=normalize,
+            started=request.state.started,
         )
         logger.info(
             json.dumps(
                 {
                     "event": "ocr_batch_complete",
+                    "request_id": request.state.request_id,
                     "status": 200,
                     "item_count": len(response.results),
                     "success_count": sum(item.success for item in response.results),
+                    "image_size_bytes": image_bytes,
+                    "image_formats": image_formats,
                     "latency_ms": response.processing_time_ms,
                     "retry_count": retry_count,
                 }

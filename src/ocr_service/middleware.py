@@ -6,7 +6,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .errors import RequestTooLarge
+from .models import AppError
 
 
 class RequestBodyLimitMiddleware:
@@ -38,12 +38,14 @@ class RequestBodyLimitMiddleware:
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > max_bytes:
-                    raise RequestTooLarge
+                    raise AppError("request_too_large")
             return message
 
         try:
             await self.app(scope, limited_receive, send)
-        except RequestTooLarge:
+        except AppError as exc:
+            if exc.code != "request_too_large":
+                raise
             await self._reject(scope, send)
 
     @staticmethod
@@ -74,6 +76,9 @@ class RequestContextMiddleware:
         request_id = dict(scope.get("headers", [])).get(b"x-request-id", b"").decode()[:128]
         request_id = request_id or str(uuid.uuid4())
         started = time.perf_counter()
+        state = scope.setdefault("state", {})
+        state["request_id"] = request_id
+        state["started"] = started
 
         async def add_headers(message: Message) -> None:
             if message["type"] == "http.response.start":

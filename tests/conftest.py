@@ -6,15 +6,10 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from ocr_service.app import create_app
-from ocr_service.domain import OCRResult
 
 
-class FakeProvider:
-    async def extract(self, image: bytes) -> OCRResult:
-        return OCRResult("Hello world", 0.95)
-
-    async def close(self) -> None:
-        pass
+async def fake_ocr(image: bytes) -> tuple[str, float, int]:
+    return "Hello world", 0.95, 0
 
 
 @pytest.fixture
@@ -26,5 +21,5 @@ def jpeg() -> bytes:
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(create_app(provider_factory=FakeProvider)) as value:
+    with TestClient(create_app(ocr=fake_ocr)) as value:
         yield value

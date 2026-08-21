@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     max_batch_image_bytes: int = 25 * 1024 * 1024
     batch_max_concurrency: int = 2
     batch_timeout_seconds: float = 50.0
+    request_timeout_seconds: float = 50.0
     vision_timeout_seconds: float = 20.0
     vision_max_retries: int = 2
     public_docs_url: str = "https://ocr.lelbaba.top/api-docs.html"

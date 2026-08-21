@@ -1,4 +1,4 @@
-from ocr_service.service import normalize_text
+from ocr_service.processing import normalize_text
 
 
 def test_normalize_text_preserves_lines_and_normalizes_unicode() -> None:

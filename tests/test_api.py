@@ -1,7 +1,14 @@
+import asyncio
 import io
+import json
+import logging
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
+
+from ocr_service.app import create_app
+from ocr_service.config import Settings
 
 
 def test_health(client: TestClient) -> None:
@@ -140,3 +147,49 @@ def test_docs_redirects_to_public_guide(client: TestClient) -> None:
 
     assert response.status_code == 307
     assert response.headers["location"] == "https://ocr.lelbaba.top/api-docs.html"
+
+
+def test_unknown_route_and_wrong_method_have_specific_errors(client: TestClient) -> None:
+    missing = client.get("/does-not-exist")
+    wrong_method = client.get("/extract-text")
+
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "not_found"
+    assert wrong_method.status_code == 405
+    assert wrong_method.json()["error"]["code"] == "method_not_allowed"
+
+
+async def slow_ocr(image: bytes) -> tuple[str, float, int]:
+    await asyncio.sleep(1)
+    return "late", 0.9, 0
+
+
+def test_single_request_has_an_application_timeout(jpeg: bytes) -> None:
+    settings = Settings(request_timeout_seconds=0.01)
+    with TestClient(create_app(ocr=slow_ocr, settings=settings)) as client:
+        response = client.post("/extract-text", files={"image": ("x.jpg", jpeg, "image/jpeg")})
+
+    assert response.status_code == 504
+    assert response.json()["error"]["code"] == "ocr_deadline_exceeded"
+
+
+def test_success_log_contains_safe_request_context(
+    client: TestClient, jpeg: bytes, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.INFO, logger="ocr_service"):
+        response = client.post(
+            "/extract-text",
+            files={"image": ("x.jpg", jpeg, "image/jpeg")},
+            headers={"x-request-id": "test-request"},
+        )
+
+    record = next(
+        json.loads(item.message)
+        for item in caplog.records
+        if '"event": "ocr_complete"' in item.message
+    )
+    assert response.status_code == 200
+    assert record["request_id"] == "test-request"
+    assert record["image_size_bytes"] == len(jpeg)
+    assert record["image_format"] == "JPEG"
+    assert "text" not in record

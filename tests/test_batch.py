@@ -1,5 +1,6 @@
 import asyncio
 import io
+import time
 
 import pytest
 from fastapi import UploadFile
@@ -7,17 +8,12 @@ from fastapi.testclient import TestClient
 
 from ocr_service.app import create_app
 from ocr_service.config import Settings
-from ocr_service.domain import OCRResult
-from ocr_service.errors import BatchTooLarge, OCRUnavailable
-from ocr_service.service import ExtractBatchService, ExtractTextService
+from ocr_service.models import AppError
+from ocr_service.processing import extract_batch
 
 
-class FakeProvider:
-    async def extract(self, image: bytes) -> OCRResult:
-        return OCRResult("Hello  world", 0.95)
-
-    async def close(self) -> None:
-        pass
+async def fake_ocr(image: bytes) -> tuple[str, float, int]:
+    return "Hello  world", 0.95, 0
 
 
 def batch_files(images: list[bytes]) -> list[tuple[str, tuple[str, bytes, str]]]:
@@ -45,8 +41,7 @@ def test_batch_success_preserves_order_and_options(client: TestClient, jpeg: byt
 
 def test_batch_isolates_invalid_images(client: TestClient, jpeg: bytes) -> None:
     response = client.post(
-        "/extract-text/batch",
-        files=batch_files([jpeg, b"\xff\xd8\xffbroken", jpeg]),
+        "/extract-text/batch", files=batch_files([jpeg, b"\xff\xd8\xffbroken", jpeg])
     )
 
     assert response.status_code == 200
@@ -68,7 +63,7 @@ def test_batch_requires_one_to_five_images(client: TestClient, jpeg: bytes) -> N
 
 def test_batch_enforces_individual_image_limit(jpeg: bytes) -> None:
     settings = Settings(max_image_bytes=len(jpeg), max_batch_image_bytes=len(jpeg) * 3)
-    with TestClient(create_app(provider_factory=FakeProvider, settings=settings)) as client:
+    with TestClient(create_app(ocr=fake_ocr, settings=settings)) as client:
         response = client.post("/extract-text/batch", files=batch_files([jpeg, jpeg + b"x"]))
 
     assert response.status_code == 200
@@ -77,13 +72,12 @@ def test_batch_enforces_individual_image_limit(jpeg: bytes) -> None:
 
 
 def test_batch_enforces_exact_combined_image_limit(jpeg: bytes) -> None:
-    combined_limit = len(jpeg) * 2
     settings = Settings(
         max_image_bytes=len(jpeg) + 1,
-        max_batch_image_bytes=combined_limit,
+        max_batch_image_bytes=len(jpeg) * 2,
         request_overhead_bytes=4096,
     )
-    with TestClient(create_app(provider_factory=FakeProvider, settings=settings)) as client:
+    with TestClient(create_app(ocr=fake_ocr, settings=settings)) as client:
         exact = client.post("/extract-text/batch", files=batch_files([jpeg, jpeg]))
         over = client.post("/extract-text/batch", files=batch_files([jpeg, jpeg + b"x"]))
 
@@ -94,34 +88,30 @@ def test_batch_enforces_exact_combined_image_limit(jpeg: bytes) -> None:
 
 @pytest.mark.asyncio
 async def test_batch_measures_combined_size_when_upload_size_is_unknown(jpeg: bytes) -> None:
-    provider = FakeProvider()
-    service = ExtractBatchService(
-        extract_service=ExtractTextService(provider, len(jpeg), 1_000_000),
-        max_image_bytes=len(jpeg),
-        max_image_pixels=1_000_000,
-        max_images=5,
-        max_combined_bytes=len(jpeg) - 1,
-        max_concurrency=2,
-        timeout_seconds=1,
-    )
     upload = UploadFile(filename="image.jpg", file=io.BytesIO(jpeg))
+    settings = Settings(max_image_bytes=len(jpeg), max_batch_image_bytes=len(jpeg) - 1)
 
-    with pytest.raises(BatchTooLarge):
-        await service.execute([upload])
+    with pytest.raises(AppError) as caught:
+        await extract_batch(
+            [upload],
+            fake_ocr,
+            settings,
+            include_metadata=False,
+            normalize=False,
+            started=time.perf_counter(),
+        )
 
+    assert caught.value.code == "batch_too_large"
     assert upload.file.closed
 
 
 def test_batch_request_body_guard_uses_batch_limit() -> None:
     settings = Settings(max_batch_image_bytes=100, request_overhead_bytes=100)
-    with TestClient(create_app(provider_factory=FakeProvider, settings=settings)) as client:
+    with TestClient(create_app(ocr=fake_ocr, settings=settings)) as client:
         response = client.post(
             "/extract-text/batch",
             content=b"x",
-            headers={
-                "content-type": "multipart/form-data",
-                "content-length": "201",
-            },
+            headers={"content-type": "multipart/form-data", "content-length": "201"},
         )
 
     assert response.status_code == 413
@@ -129,48 +119,41 @@ def test_batch_request_body_guard_uses_batch_limit() -> None:
     assert response.headers["x-request-id"]
 
 
-class TrackingProvider:
+class TrackingOCR:
     def __init__(self) -> None:
         self.active = 0
         self.max_active = 0
 
-    async def extract(self, image: bytes) -> OCRResult:
+    async def __call__(self, image: bytes) -> tuple[str, float, int]:
         identifier = image[-1]
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         try:
             await asyncio.sleep((6 - identifier) * 0.005)
-            return OCRResult(str(identifier), 0.9)
+            return str(identifier), 0.9, 0
         finally:
             self.active -= 1
 
-    async def close(self) -> None:
-        pass
 
-
-def test_batch_limits_provider_concurrency_and_preserves_order(jpeg: bytes) -> None:
-    provider = TrackingProvider()
+def test_batch_limits_ocr_concurrency_and_preserves_order(jpeg: bytes) -> None:
+    ocr = TrackingOCR()
     images = [jpeg + bytes([identifier]) for identifier in range(1, 6)]
-    with TestClient(create_app(provider_factory=lambda: provider)) as client:
+    with TestClient(create_app(ocr=ocr)) as client:
         response = client.post("/extract-text/batch", files=batch_files(images))
 
     assert response.status_code == 200
-    assert provider.max_active == 2
+    assert ocr.max_active == 2
     assert [item["text"] for item in response.json()["results"]] == ["1", "2", "3", "4", "5"]
 
 
-class MixedProvider:
-    async def extract(self, image: bytes) -> OCRResult:
-        if image[-1] == 2:
-            raise OCRUnavailable
-        return OCRResult(str(image[-1]), 0.9)
-
-    async def close(self) -> None:
-        pass
+async def mixed_ocr(image: bytes) -> tuple[str, float, int]:
+    if image[-1] == 2:
+        raise AppError("ocr_unavailable")
+    return str(image[-1]), 0.9, 0
 
 
-def test_batch_isolates_provider_failures(jpeg: bytes) -> None:
-    with TestClient(create_app(provider_factory=MixedProvider)) as client:
+def test_batch_isolates_ocr_failures(jpeg: bytes) -> None:
+    with TestClient(create_app(ocr=mixed_ocr)) as client:
         response = client.post(
             "/extract-text/batch", files=batch_files([jpeg + b"\x01", jpeg + b"\x02"])
         )
@@ -182,18 +165,14 @@ def test_batch_isolates_provider_failures(jpeg: bytes) -> None:
     assert results[1]["error"]["code"] == "ocr_unavailable"
 
 
-class SlowProvider:
-    async def extract(self, image: bytes) -> OCRResult:
-        await asyncio.sleep(1)
-        return OCRResult("late", 0.9)
-
-    async def close(self) -> None:
-        pass
+async def slow_ocr(image: bytes) -> tuple[str, float, int]:
+    await asyncio.sleep(1)
+    return "late", 0.9, 0
 
 
 def test_batch_timeout_marks_unfinished_items(jpeg: bytes) -> None:
     settings = Settings(batch_timeout_seconds=0.01)
-    with TestClient(create_app(provider_factory=SlowProvider, settings=settings)) as client:
+    with TestClient(create_app(ocr=slow_ocr, settings=settings)) as client:
         response = client.post("/extract-text/batch", files=batch_files([jpeg] * 3))
 
     assert response.status_code == 200
