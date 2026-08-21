@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 50.0
     vision_timeout_seconds: float = 20.0
     vision_max_retries: int = 2
+    frontend_origin: str = "https://ocr.lelbaba.top"
     public_docs_url: str = "https://ocr.lelbaba.top/api-docs.html"
 
     @property

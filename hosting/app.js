@@ -5,6 +5,7 @@ const limits = {
 };
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/gif"]);
+const apiBaseUrl = "https://api.ocr.lelbaba.top";
 const state = { mode: "single", files: [], busy: false };
 
 const elements = {
@@ -211,7 +212,7 @@ async function extractText() {
   const path = state.mode === "batch" ? "/extract-text/batch" : "/extract-text";
 
   try {
-    const response = await fetch(`${path}?${query}`, { method: "POST", body: form });
+    const response = await fetch(`${apiBaseUrl}${path}?${query}`, { method: "POST", body: form });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(payload?.error?.message || `Request failed with status ${response.status}.`);

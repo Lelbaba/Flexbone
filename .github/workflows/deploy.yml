@@ -36,8 +36,9 @@ jobs:
           gcloud run deploy flexbone-ocr --image "$IMAGE" --region "$REGION" \
             --service-account "ocr-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
             --cpu 1 --memory 512Mi --concurrency 8 --min 0 --max 5 --timeout 60 \
-            --default-url --no-invoker-iam-check --quiet
-          URL="$(gcloud run services describe flexbone-ocr --region "$REGION" --format='value(status.url)')"
+            --ingress internal-and-cloud-load-balancing --no-default-url \
+            --no-invoker-iam-check --quiet
+          URL="https://api.ocr.lelbaba.top"
           curl --fail --retry 5 "$URL/health"
           echo "CLOUD_RUN_URL=$URL" >> "$GITHUB_ENV"
         env:

@@ -149,6 +149,28 @@ def test_docs_redirects_to_public_guide(client: TestClient) -> None:
     assert response.headers["location"] == "https://ocr.lelbaba.top/api-docs.html"
 
 
+def test_frontend_origin_is_allowed_by_cors(client: TestClient) -> None:
+    response = client.options(
+        "/extract-text",
+        headers={
+            "origin": "https://ocr.lelbaba.top",
+            "access-control-request-method": "POST",
+            "access-control-request-headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://ocr.lelbaba.top"
+    assert "POST" in response.headers["access-control-allow-methods"]
+
+
+def test_unknown_origin_is_not_allowed_by_cors(client: TestClient) -> None:
+    response = client.get("/health", headers={"origin": "https://example.com"})
+
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+
+
 def test_unknown_route_and_wrong_method_have_specific_errors(client: TestClient) -> None:
     missing = client.get("/does-not-exist")
     wrong_method = client.get("/extract-text")

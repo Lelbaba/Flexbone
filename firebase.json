@@ -16,15 +16,6 @@
           }
         ]
       }
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "run": {
-          "serviceId": "flexbone-ocr",
-          "region": "asia-south1"
-        }
-      }
     ]
   }
 }

@@ -12,5 +12,6 @@ docker push "$IMAGE"
 gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" \
   --service-account "ocr-runtime@$PROJECT_ID.iam.gserviceaccount.com" \
   --cpu 1 --memory 512Mi --concurrency 8 --min 0 --max 5 --timeout 60 \
-  --default-url --no-invoker-iam-check
-gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)'
+  --ingress internal-and-cloud-load-balancing --no-default-url \
+  --no-invoker-iam-check
+printf 'https://api.ocr.lelbaba.top\n'

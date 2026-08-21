@@ -8,6 +8,7 @@ from typing import Annotated, cast
 
 from fastapi import FastAPI, File, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from google.cloud import vision_v1
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -88,6 +89,13 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
         path_limits={"/extract-text/batch": config.max_batch_request_bytes},
     )
     app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[config.frontend_origin],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Accept", "Content-Type", "X-Request-ID"],
+        expose_headers=["Server-Timing", "X-Request-ID"],
+    )
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
