@@ -1,5 +1,6 @@
 import time
 import uuid
+from collections.abc import Mapping
 
 from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
@@ -9,18 +10,22 @@ from .errors import RequestTooLarge
 
 
 class RequestBodyLimitMiddleware:
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    def __init__(
+        self, app: ASGIApp, max_bytes: int, path_limits: Mapping[str, int] | None = None
+    ) -> None:
         self.app = app
         self.max_bytes = max_bytes
+        self.path_limits = path_limits or {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+        max_bytes = self.path_limits.get(scope.get("path", ""), self.max_bytes)
         length = dict(scope.get("headers", [])).get(b"content-length")
         if length:
             try:
-                if int(length) > self.max_bytes:
+                if int(length) > max_bytes:
                     await self._reject(scope, send)
                     return
             except ValueError:
@@ -32,7 +37,7 @@ class RequestBodyLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > max_bytes:
                     raise RequestTooLarge
             return message
 

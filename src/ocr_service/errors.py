@@ -16,6 +16,12 @@ class MalformedRequest(AppError):
     status_code = 400
 
 
+class InvalidBatch(AppError):
+    code = "invalid_batch"
+    message = "A multipart request with 1 to 5 'images' fields is required."
+    status_code = 400
+
+
 class ImageTooLarge(AppError):
     code = "image_too_large"
     message = "The image exceeds the 10 MiB limit."
@@ -31,6 +37,12 @@ class ImageDimensionsTooLarge(AppError):
 class RequestTooLarge(AppError):
     code = "request_too_large"
     message = "The request body is too large."
+    status_code = 413
+
+
+class BatchTooLarge(AppError):
+    code = "batch_too_large"
+    message = "The combined image data exceeds the 25 MiB limit."
     status_code = 413
 
 

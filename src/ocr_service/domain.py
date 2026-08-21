@@ -52,5 +52,21 @@ class ErrorResponse(BaseModel):
     processing_time_ms: int = Field(ge=0)
 
 
+class BatchSuccessItem(SuccessResponse):
+    index: int = Field(ge=0)
+    status_code: int = 200
+
+
+class BatchErrorItem(ErrorResponse):
+    index: int = Field(ge=0)
+    status_code: int = Field(ge=400, le=599)
+
+
+class BatchResponse(BaseModel):
+    success: bool = True
+    results: list[BatchSuccessItem | BatchErrorItem]
+    processing_time_ms: int = Field(ge=0)
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"

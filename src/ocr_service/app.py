@@ -12,10 +12,17 @@ from google.cloud import vision_v1
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import Settings
-from .domain import ErrorDetail, ErrorResponse, HealthResponse, OCRProvider, SuccessResponse
-from .errors import AppError, MalformedRequest
+from .domain import (
+    BatchResponse,
+    ErrorDetail,
+    ErrorResponse,
+    HealthResponse,
+    OCRProvider,
+    SuccessResponse,
+)
+from .errors import AppError, InvalidBatch, MalformedRequest
 from .middleware import RequestBodyLimitMiddleware, RequestContextMiddleware
-from .service import ExtractTextService
+from .service import ExtractBatchService, ExtractTextService
 from .vision import GoogleVisionProvider
 
 logger = logging.getLogger("ocr_service")
@@ -48,8 +55,18 @@ def create_app(
             )
         )
         app.state.provider = provider
-        app.state.extract_service = ExtractTextService(
+        extract_service = ExtractTextService(
             provider, config.max_image_bytes, config.max_image_pixels
+        )
+        app.state.extract_service = extract_service
+        app.state.extract_batch_service = ExtractBatchService(
+            extract_service=extract_service,
+            max_image_bytes=config.max_image_bytes,
+            max_image_pixels=config.max_image_pixels,
+            max_images=config.max_batch_images,
+            max_combined_bytes=config.max_batch_image_bytes,
+            max_concurrency=config.batch_max_concurrency,
+            timeout_seconds=config.batch_timeout_seconds,
         )
         yield
         await provider.close()
@@ -62,7 +79,11 @@ def create_app(
         ),
         lifespan=lifespan,
     )
-    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=config.max_request_bytes)
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=config.max_request_bytes,
+        path_limits={"/extract-text/batch": config.max_batch_request_bytes},
+    )
     app.add_middleware(RequestContextMiddleware)
 
     @app.exception_handler(AppError)
@@ -72,7 +93,8 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        return _error(MalformedRequest(), getattr(request.state, "started", time.perf_counter()))
+        error = InvalidBatch() if request.url.path == "/extract-text/batch" else MalformedRequest()
+        return _error(error, getattr(request.state, "started", time.perf_counter()))
 
     @app.exception_handler(StarletteHTTPException)
     async def http_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -120,6 +142,39 @@ def create_app(
                 {
                     "event": "ocr_complete",
                     "status": 200,
+                    "latency_ms": response.processing_time_ms,
+                    "retry_count": retry_count,
+                }
+            )
+        )
+        return response
+
+    @app.post(
+        "/extract-text/batch",
+        response_model=BatchResponse,
+        response_model_exclude_none=True,
+        responses={code: {"model": ErrorResponse} for code in (400, 413, 500)},
+    )
+    async def extract_text_batch(
+        request: Request,
+        images: Annotated[
+            list[UploadFile], File(description="One to five images, up to 10 MiB each")
+        ],
+        include_metadata: Annotated[bool, Query(alias="metadata")] = False,
+        normalize: bool = False,
+    ) -> BatchResponse:
+        request.state.started = time.perf_counter()
+        service = cast(ExtractBatchService, request.app.state.extract_batch_service)
+        response, retry_count = await service.execute(
+            images, include_metadata=include_metadata, normalize=normalize
+        )
+        logger.info(
+            json.dumps(
+                {
+                    "event": "ocr_batch_complete",
+                    "status": 200,
+                    "item_count": len(response.results),
+                    "success_count": sum(item.success for item in response.results),
                     "latency_ms": response.processing_time_ms,
                     "retry_count": retry_count,
                 }

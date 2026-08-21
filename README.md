@@ -27,14 +27,26 @@ curl -F 'image=@sample.png;type=image/png' \
 
 `metadata=true` adds width, height, byte size, decoded format, and color mode without exposing EXIF. `normalize=true` adds `normalized_text` while preserving raw OCR output in `text`.
 
+Process up to five images in one request with repeated `images` fields. Each image may be up to 10 MiB, combined image data may be up to 25 MiB, and at most two Vision operations run simultaneously:
+
+```bash
+curl \
+  -F 'images=@samples/normal.jpg;type=image/jpeg' \
+  -F 'images=@samples/rotated.jpg;type=image/jpeg' \
+  -F 'images=@samples/supported.png;type=image/png' \
+  'http://localhost:8000/extract-text/batch?metadata=true&normalize=true'
+```
+
+Batch results remain in input order. A valid batch returns `200`; each item contains its own `success`, `status_code`, result or error, and processing time, so one invalid image does not discard successful OCR results. The whole batch has a 50-second processing budget, after which unfinished items receive `ocr_deadline_exceeded` results.
+
 Success returns `{"success":true,"text":"...","confidence":0.95,"processing_time_ms":123}`. A readable image containing no text is also successful, with empty text and zero confidence. `/health` is the public liveness check and never calls Vision; `/healthz` remains a local alias because Cloud Run reserves paths ending in `z`. Interactive OpenAPI documentation is at `/docs`.
 
 Errors always use `{"success":false,"error":{"code":"...","message":"..."},"processing_time_ms":3}`:
 
 | Status | Codes | Meaning |
 |---|---|---|
-| 400 | `malformed_request`, `empty_upload` | Missing/bad multipart data or empty file |
-| 413 | `image_too_large`, `image_dimensions_too_large`, `request_too_large` | File, decoded dimensions, or body exceeds its bound |
+| 400 | `malformed_request`, `invalid_batch`, `empty_upload` | Missing/bad multipart data, invalid image count, or empty file |
+| 413 | `image_too_large`, `image_dimensions_too_large`, `batch_too_large`, `request_too_large` | File, decoded dimensions, combined batch data, or body exceeds its bound |
 | 415 | `unsupported_image_format` | Decoded input is not JPEG, PNG, or GIF |
 | 422 | `corrupt_image` | Unreadable image |
 | 503 | `ocr_unavailable` | Vision unavailable or quota exhausted |
@@ -77,6 +89,8 @@ Cloud Run origin: **https://flexbone-ocr-dobv35r4bq-el.a.run.app**
 curl https://api.ocr.lelbaba.top/health
 curl -F 'image=@test-images/english-eye-chart.jpg;type=image/jpeg' \
   https://api.ocr.lelbaba.top/extract-text
+curl -F 'images=@samples/normal.jpg' -F 'images=@samples/rotated.jpg' \
+  https://api.ocr.lelbaba.top/extract-text/batch
 ```
 
 Troubleshooting: verify ADC and `vision.googleapis.com` for 503s; inspect structured Cloud Run logs by request ID; confirm the runtime service account has `roles/serviceusage.serviceUsageConsumer`; and verify the upload is actual JPEG data, regardless of its extension or declared MIME type.
