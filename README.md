@@ -1,33 +1,86 @@
 # Flexbone OCR API
 
-A stateless FastAPI service that validates JPEG, PNG, and GIF uploads and sends their original bytes to Google Cloud Vision `DOCUMENT_TEXT_DETECTION`. Animated GIFs use their first frame. Uploads and OCR text are never retained or logged.
+A stateless FastAPI service that validates image uploads and sends their original bytes to Google Cloud Vision `DOCUMENT_TEXT_DETECTION`. It supports single and batch OCR, optional safe metadata, and opt-in text normalization. Uploads and OCR results are never retained or logged.
 
-## API
+## Live services
 
-Run locally with Application Default Credentials:
+| Resource | URL |
+|---|---|
+| Browser tester | <https://ocr.lelbaba.top> |
+| API | <https://api.ocr.lelbaba.top> |
+| API guide | <https://api.ocr.lelbaba.top/docs> |
+| OpenAPI schema | <https://api.ocr.lelbaba.top/openapi.json> |
+| Health check | <https://api.ocr.lelbaba.top/health> |
+
+The API currently reaches Cloud Run through a Firebase Hosting rewrite. A global external Application Load Balancer and Cloud Armor policy are provisioned with rate-limit rules in preview, but the final API DNS and ingress cutover has not yet been applied. See [Infrastructure setup](docs/INFRASTRUCTURE.md) for the exact topology and cutover procedure.
+
+## Requirements
+
+- Git
+- Python 3.12
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
+- A billing-enabled Google Cloud project with the Vision API enabled
+- [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+- Docker, only for container build and smoke testing
+
+Firebase CLI, GitHub CLI, `jq`, and a domain are additionally required for a full cloud deployment.
+
+## Local setup
+
+Clone the repository and install the locked runtime and development dependencies:
+
+```bash
+git clone git@github.com:Lelbaba/Flexbone.git
+cd Flexbone
+uv sync --frozen
+```
+
+Authenticate Application Default Credentials and assign Vision requests to your billing-enabled project:
 
 ```bash
 gcloud auth application-default login
-uv sync --frozen
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
+gcloud services enable vision.googleapis.com --project YOUR_PROJECT_ID
+```
+
+Start the API:
+
+```bash
 uv run uvicorn ocr_service.app:app --reload
 ```
 
-Extract text (JPEG, PNG, or GIF; maximum image size: exactly 10 MiB and 40 megapixels decoded):
+Verify it from another terminal:
 
 ```bash
-curl -F 'image=@sample.jpg;type=image/jpeg' http://localhost:8000/extract-text
+curl http://localhost:8000/health
+curl -F 'image=@samples/normal.jpg;type=image/jpeg' \
+  http://localhost:8000/extract-text
 ```
 
-Optional response features are enabled with query parameters:
+The application reads configuration from `OCR_`-prefixed environment variables:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `OCR_MAX_IMAGE_BYTES` | `10485760` | Maximum bytes per image |
+| `OCR_MAX_IMAGE_PIXELS` | `40000000` | Maximum decoded width × height |
+| `OCR_MAX_BATCH_IMAGES` | `5` | Images accepted by one batch |
+| `OCR_MAX_BATCH_IMAGE_BYTES` | `26214400` | Maximum combined image bytes |
+| `OCR_BATCH_MAX_CONCURRENCY` | `2` | Concurrent Vision calls per batch |
+| `OCR_BATCH_TIMEOUT_SECONDS` | `50` | Whole-batch processing budget |
+| `OCR_VISION_TIMEOUT_SECONDS` | `20` | Deadline for each Vision attempt |
+| `OCR_VISION_MAX_RETRIES` | `2` | Retries after the initial attempt |
+| `OCR_PUBLIC_DOCS_URL` | `https://ocr.lelbaba.top/api-docs.html` | Target of `/docs` |
+
+## API examples
+
+Single image, with optional metadata and normalized text:
 
 ```bash
-curl -F 'image=@sample.png;type=image/png' \
+curl -F 'image=@samples/normal.jpg;type=image/jpeg' \
   'http://localhost:8000/extract-text?metadata=true&normalize=true'
 ```
 
-`metadata=true` adds width, height, byte size, decoded format, and color mode without exposing EXIF. `normalize=true` adds `normalized_text` while preserving raw OCR output in `text`.
-
-Process up to five images in one request with repeated `images` fields. Each image may be up to 10 MiB, combined image data may be up to 25 MiB, and at most two Vision operations run simultaneously:
+Batch OCR uses repeated `images` fields. It accepts one to five images, up to 10 MiB each and 25 MiB combined, and runs at most two Vision calls simultaneously:
 
 ```bash
 curl \
@@ -37,64 +90,73 @@ curl \
   'http://localhost:8000/extract-text/batch?metadata=true&normalize=true'
 ```
 
-Batch results remain in input order. A valid batch returns `200`; each item contains its own `success`, `status_code`, result or error, and processing time, so one invalid image does not discard successful OCR results. The whole batch has a 50-second processing budget, after which unfinished items receive `ocr_deadline_exceeded` results.
+JPEG, PNG, and GIF are supported; only the first frame of an animated GIF is processed. File contents are decoded and verified instead of trusting the extension or client MIME type. Exact request, response, and error contracts are in the [API guide](https://ocr.lelbaba.top/api-docs.html).
 
-Success returns `{"success":true,"text":"...","confidence":0.95,"processing_time_ms":123}`. A readable image containing no text is also successful, with empty text and zero confidence. `/health` is the public liveness check and never calls Vision; `/healthz` remains a local alias because Cloud Run reserves paths ending in `z`. Interactive OpenAPI documentation is at `/docs`.
+## Quality checks
 
-Errors always use `{"success":false,"error":{"code":"...","message":"..."},"processing_time_ms":3}`:
-
-| Status | Codes | Meaning |
-|---|---|---|
-| 400 | `malformed_request`, `invalid_batch`, `empty_upload` | Missing/bad multipart data, invalid image count, or empty file |
-| 413 | `image_too_large`, `image_dimensions_too_large`, `batch_too_large`, `request_too_large` | File, decoded dimensions, combined batch data, or body exceeds its bound |
-| 415 | `unsupported_image_format` | Decoded input is not JPEG, PNG, or GIF |
-| 422 | `corrupt_image` | Unreadable image |
-| 503 | `ocr_unavailable` | Vision unavailable or quota exhausted |
-| 504 | `ocr_deadline_exceeded` | Vision deadline exhausted after retries |
-| 500 | `internal_error` | Sanitized unexpected failure |
-
-## Quality and container
+The test suite uses an injected fake OCR provider and does not need Google credentials:
 
 ```bash
+uv sync --frozen
+uv lock --check
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy
 uv run pytest
+```
+
+The configured coverage gate is 85%. API, validation, batch concurrency, confidence aggregation, provider failure, retry, and error-contract behavior are covered.
+
+## Container
+
+Build and run the same non-root image used by Cloud Run:
+
+```bash
 docker build -t flexbone-ocr .
-docker run --rm -p 8080:8080 -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json -v "$HOME/.config/gcloud/application_default_credentials.json:/adc.json:ro" flexbone-ocr
+docker run --rm -p 8080:8080 \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json \
+  -v "$HOME/.config/gcloud/application_default_credentials.json:/adc.json:ro" \
+  flexbone-ocr
 curl http://localhost:8080/health
 ```
 
-The multi-stage image runs as a non-root user, uses one Uvicorn worker, honors `$PORT`, and constructs one async Vision client per process. The application uses API, application-service, domain port, validation, and infrastructure-adapter layers. Confidence is a symbol-count-weighted mean of available word confidences.
+The image uses one Uvicorn worker, one reusable asynchronous Vision client, and Cloud Run's `$PORT` environment variable.
 
-## Google Cloud deployment
+## Deployment
 
-Create a billing-enabled project and budget alert first. Then run:
+For a complete deployment—from project creation and billing through IAM, keyless GitHub Actions, Artifact Registry, Cloud Run, Firebase Hosting, custom domains, HTTPS load balancing, Cloud Armor, DNS cutover, verification, and rollback—follow [Infrastructure setup](docs/INFRASTRUCTURE.md).
 
-```bash
-PROJECT_ID=my-project GITHUB_REPOSITORY=owner/repo bash scripts/bootstrap-gcp.sh
-```
-
-The bootstrap enables the required APIs, creates Artifact Registry, separate runtime/deployer identities, and repository-constrained keyless GitHub WIF. Add its two printed values and `GCP_PROJECT_ID`/`GCP_REGION` (`asia-south1`) as GitHub environment variables. The manual production workflow accepts only `main`, pushes a commit-SHA image, deploys with concurrency 8 and max 5 instances, and runs a public health check. Cloud Run retains earlier revisions; roll back with:
+The short path after prerequisites are satisfied is:
 
 ```bash
-gcloud run services update-traffic flexbone-ocr --region asia-south1 --to-revisions REVISION=100
+PROJECT_ID=your-project-id \
+GITHUB_REPOSITORY=owner/repository \
+bash scripts/bootstrap-gcp.sh
 ```
 
-Production: **https://api.ocr.lelbaba.top**
+The script prints the two Workload Identity Federation values needed by GitHub Actions. It does not create a project, attach billing, configure a budget, modify DNS, or create Firebase Hosting; those deliberate account-level steps are documented in the infrastructure runbook.
 
-Cloud Run origin: **https://flexbone-ocr-dobv35r4bq-el.a.run.app**
+## Documentation
 
-Browser test interface: **https://project-37d64f0e-4384-4688-8a1.web.app**
+- [Implementation deep dive](docs/IMPLEMENTATION.md): runtime architecture, project structure, design patterns, module responsibilities, technology choices, behavior, tradeoffs, and limitations.
+- [Infrastructure setup](docs/INFRASTRUCTURE.md): reproducible, from-scratch cloud and domain deployment.
+- [API guide](https://ocr.lelbaba.top/api-docs.html): public request and response contract.
+- [Test images](test-images/README.md): redistribution-safe OCR fixtures and their intended use.
 
-The Firebase-hosted interface supports drag-and-drop single and batch OCR, optional text normalization, image metadata, previews, and copyable results. It has no frontend build step; Firebase serves the files in `hosting/` and forwards API requests to Cloud Run.
+## Troubleshooting
+
+- `503 ocr_unavailable`: verify ADC, project billing, `vision.googleapis.com`, runtime service-account access, and Vision quota.
+- `504 ocr_deadline_exceeded`: retry later or use a clearer/smaller image; the provider deadline has been exhausted.
+- `413`: check per-image, combined batch, decoded dimension, and multipart body limits.
+- Local credential quota errors: rerun `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`.
+- Deployment authentication errors: verify the four GitHub variables and the repository constraint on the WIF provider.
+- Cloud failures: search Cloud Run structured logs by `x-request-id`; image bytes and OCR text are intentionally absent from logs.
+
+Cloud Run keeps previous revisions. Roll back traffic with:
 
 ```bash
-curl https://api.ocr.lelbaba.top/health
-curl -F 'image=@test-images/english-eye-chart.jpg;type=image/jpeg' \
-  https://api.ocr.lelbaba.top/extract-text
-curl -F 'images=@samples/normal.jpg' -F 'images=@samples/rotated.jpg' \
-  https://api.ocr.lelbaba.top/extract-text/batch
+gcloud run services update-traffic flexbone-ocr \
+  --project YOUR_PROJECT_ID \
+  --region asia-south1 \
+  --to-revisions REVISION_NAME=100
 ```
-
-Troubleshooting: verify ADC and `vision.googleapis.com` for 503s; inspect structured Cloud Run logs by request ID; confirm the runtime service account has `roles/serviceusage.serviceUsageConsumer`; and verify the upload is actual JPEG data, regardless of its extension or declared MIME type.
