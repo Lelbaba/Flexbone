@@ -5,7 +5,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.12-slim
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PORT=8080
@@ -15,4 +15,3 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 USER app
 EXPOSE 8080
 CMD ["sh", "-c", "exec uvicorn ocr_service.app:app --host 0.0.0.0 --port ${PORT} --workers 1"]
-
