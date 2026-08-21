@@ -1,0 +1,19 @@
+{
+  "hosting": {
+    "public": "hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "flexbone-ocr",
+          "region": "asia-south1"
+        }
+      }
+    ]
+  }
+}
