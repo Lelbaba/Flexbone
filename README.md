@@ -60,6 +60,12 @@ The bootstrap enables the required APIs, creates Artifact Registry, separate run
 gcloud run services update-traffic flexbone-ocr --region asia-south1 --to-revisions REVISION=100
 ```
 
-The final public URL is emitted by the deployment; record it here after provisioning: **not yet provisioned**.
+Production: **https://flexbone-ocr-dobv35r4bq-el.a.run.app**
+
+```bash
+curl https://flexbone-ocr-dobv35r4bq-el.a.run.app/health
+curl -F 'image=@samples/normal.jpg;type=image/jpeg' \
+  https://flexbone-ocr-dobv35r4bq-el.a.run.app/extract-text
+```
 
 Troubleshooting: verify ADC and `vision.googleapis.com` for 503s; inspect structured Cloud Run logs by request ID; confirm the runtime service account has `roles/serviceusage.serviceUsageConsumer`; and verify the upload is actual JPEG data, regardless of its extension or declared MIME type.
