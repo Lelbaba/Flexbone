@@ -5,19 +5,20 @@ import unicodedata
 from fastapi import UploadFile
 
 from .domain import OCRProvider, SuccessResponse
-from .validation import read_validated_jpeg
+from .validation import read_validated_image
 
 
 class ExtractTextService:
-    def __init__(self, provider: OCRProvider, max_image_bytes: int) -> None:
+    def __init__(self, provider: OCRProvider, max_image_bytes: int, max_image_pixels: int) -> None:
         self._provider = provider
         self._max_image_bytes = max_image_bytes
+        self._max_image_pixels = max_image_pixels
 
     async def execute(
         self, upload: UploadFile, *, include_metadata: bool = False, normalize: bool = False
     ) -> tuple[SuccessResponse, int]:
         started = time.perf_counter()
-        image = await read_validated_jpeg(upload, self._max_image_bytes)
+        image = await read_validated_image(upload, self._max_image_bytes, self._max_image_pixels)
         result = await self._provider.extract(image.content)
         elapsed = max(0, round((time.perf_counter() - started) * 1000))
         return (

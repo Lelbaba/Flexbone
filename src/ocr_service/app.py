@@ -48,7 +48,9 @@ def create_app(
             )
         )
         app.state.provider = provider
-        app.state.extract_service = ExtractTextService(provider, config.max_image_bytes)
+        app.state.extract_service = ExtractTextService(
+            provider, config.max_image_bytes, config.max_image_pixels
+        )
         yield
         await provider.close()
 
@@ -96,7 +98,7 @@ def create_app(
     )
     async def extract_text(
         request: Request,
-        image: Annotated[UploadFile, File(description="JPEG image, up to 10 MiB")],
+        image: Annotated[UploadFile, File(description="JPEG, PNG, or GIF image, up to 10 MiB")],
         include_metadata: Annotated[bool, Query(alias="metadata")] = False,
         normalize: bool = False,
     ) -> SuccessResponse:

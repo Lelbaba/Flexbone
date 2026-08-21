@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="OCR_", frozen=True)
 
     max_image_bytes: int = 10 * 1024 * 1024
+    max_image_pixels: int = 40_000_000
     request_overhead_bytes: int = 1024 * 1024
     vision_timeout_seconds: float = 20.0
     vision_max_retries: int = 2

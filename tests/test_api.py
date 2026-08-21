@@ -1,4 +1,7 @@
+import io
+
 from fastapi.testclient import TestClient
+from PIL import Image
 
 
 def test_health(client: TestClient) -> None:
@@ -57,17 +60,51 @@ def test_empty_file(client: TestClient) -> None:
     assert response.json()["error"]["code"] == "empty_upload"
 
 
-def test_png_renamed_to_jpeg(client: TestClient) -> None:
+def test_unsupported_bmp_renamed_to_jpeg(client: TestClient) -> None:
+    output = io.BytesIO()
+    Image.new("RGB", (10, 10)).save(output, "BMP")
     response = client.post(
-        "/extract-text", files={"image": ("x.jpg", b"\x89PNG\r\n", "image/jpeg")}
+        "/extract-text", files={"image": ("x.jpg", output.getvalue(), "image/jpeg")}
     )
     assert response.status_code == 415
     assert response.json()["error"]["code"] == "unsupported_image_format"
 
 
+def test_png_is_accepted_regardless_of_declared_type(client: TestClient) -> None:
+    output = io.BytesIO()
+    Image.new("RGBA", (12, 8), "white").save(output, "PNG")
+    response = client.post(
+        "/extract-text?metadata=true",
+        files={"image": ("renamed.jpg", output.getvalue(), "image/jpeg")},
+    )
+    assert response.status_code == 200
+    assert response.json()["metadata"]["format"] == "PNG"
+    assert response.json()["metadata"]["color_mode"] == "RGBA"
+
+
+def test_animated_gif_is_accepted(client: TestClient) -> None:
+    output = io.BytesIO()
+    frames = [Image.new("RGB", (12, 8), color) for color in ("white", "black")]
+    frames[0].save(output, "GIF", save_all=True, append_images=frames[1:], duration=100, loop=0)
+    response = client.post(
+        "/extract-text?metadata=true",
+        files={"image": ("animated.gif", output.getvalue(), "image/gif")},
+    )
+    assert response.status_code == 200
+    assert response.json()["metadata"]["format"] == "GIF"
+
+
 def test_corrupt_jpeg(client: TestClient) -> None:
     response = client.post(
         "/extract-text", files={"image": ("x.jpg", b"\xff\xd8\xffbroken", "image/jpeg")}
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "corrupt_image"
+
+
+def test_truncated_png(client: TestClient) -> None:
+    response = client.post(
+        "/extract-text", files={"image": ("x.png", b"\x89PNG\r\n\x1a\ntruncated", "image/png")}
     )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "corrupt_image"

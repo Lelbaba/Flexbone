@@ -4,12 +4,20 @@ from fastapi import UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from .domain import ImageMetadata, ValidatedImage
-from .errors import CorruptImage, EmptyUpload, ImageTooLarge, UnsupportedImageFormat
+from .errors import (
+    CorruptImage,
+    EmptyUpload,
+    ImageDimensionsTooLarge,
+    ImageTooLarge,
+    UnsupportedImageFormat,
+)
 
-JPEG_MAGIC = b"\xff\xd8\xff"
+SUPPORTED_FORMATS = {"JPEG", "PNG", "GIF"}
 
 
-async def read_validated_jpeg(upload: UploadFile, max_bytes: int) -> ValidatedImage:
+async def read_validated_image(
+    upload: UploadFile, max_bytes: int, max_pixels: int
+) -> ValidatedImage:
     data = bytearray()
     try:
         while chunk := await upload.read(min(64 * 1024, max_bytes + 1 - len(data))):
@@ -19,12 +27,12 @@ async def read_validated_jpeg(upload: UploadFile, max_bytes: int) -> ValidatedIm
         raw = bytes(data)
         if not raw:
             raise EmptyUpload
-        if not raw.startswith(JPEG_MAGIC):
-            raise UnsupportedImageFormat
         try:
             with Image.open(io.BytesIO(raw)) as image:
-                if image.format != "JPEG":
+                if image.format not in SUPPORTED_FORMATS:
                     raise UnsupportedImageFormat
+                if image.width * image.height > max_pixels:
+                    raise ImageDimensionsTooLarge
                 metadata = ImageMetadata(
                     width=image.width,
                     height=image.height,
@@ -33,8 +41,10 @@ async def read_validated_jpeg(upload: UploadFile, max_bytes: int) -> ValidatedIm
                     format=image.format,
                 )
                 image.verify()
-        except UnsupportedImageFormat:
+        except (UnsupportedImageFormat, ImageDimensionsTooLarge):
             raise
+        except Image.DecompressionBombError as exc:
+            raise ImageDimensionsTooLarge from exc
         except (UnidentifiedImageError, OSError, ValueError) as exc:
             raise CorruptImage from exc
         return ValidatedImage(content=raw, metadata=metadata)

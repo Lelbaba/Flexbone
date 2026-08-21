@@ -22,6 +22,12 @@ class ImageTooLarge(AppError):
     status_code = 413
 
 
+class ImageDimensionsTooLarge(AppError):
+    code = "image_dimensions_too_large"
+    message = "The decoded image dimensions are too large."
+    status_code = 413
+
+
 class RequestTooLarge(AppError):
     code = "request_too_large"
     message = "The request body is too large."
@@ -30,13 +36,13 @@ class RequestTooLarge(AppError):
 
 class UnsupportedImageFormat(AppError):
     code = "unsupported_image_format"
-    message = "Only JPG/JPEG images are supported."
+    message = "Only JPG/JPEG, PNG, and GIF images are supported."
     status_code = 415
 
 
 class CorruptImage(AppError):
     code = "corrupt_image"
-    message = "The JPEG image is corrupt or unreadable."
+    message = "The image is corrupt or unreadable."
     status_code = 422
 
 
