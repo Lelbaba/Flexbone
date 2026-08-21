@@ -58,8 +58,8 @@ def create_app(
         description="Extract text from JPEG images without retaining uploads or results.",
         lifespan=lifespan,
     )
-    app.add_middleware(RequestContextMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=config.max_request_bytes)
+    app.add_middleware(RequestContextMiddleware)
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:

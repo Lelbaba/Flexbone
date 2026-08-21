@@ -61,6 +61,18 @@ def test_file_limit(client: TestClient) -> None:
     assert response.json()["error"]["code"] == "image_too_large"
 
 
+def test_request_body_limit_has_context_headers(client: TestClient) -> None:
+    response = client.post(
+        "/extract-text",
+        content=b"x",
+        headers={"content-type": "multipart/form-data", "content-length": str(12 * 1024 * 1024)},
+    )
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+    assert response.headers["x-request-id"]
+    assert response.headers["server-timing"]
+
+
 def test_openapi_documents_contract(client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
     assert "/extract-text" in schema["paths"]
