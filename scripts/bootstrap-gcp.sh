@@ -19,7 +19,7 @@ gcloud iam service-accounts describe "$DEPLOY_SA@$PROJECT_ID.iam.gserviceaccount
 
 gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$RUNTIME_SA@$PROJECT_ID.iam.gserviceaccount.com" --role roles/serviceusage.serviceUsageConsumer
 gcloud artifacts repositories add-iam-policy-binding "$REPOSITORY" --location "$REGION" --member "serviceAccount:$DEPLOY_SA@$PROJECT_ID.iam.gserviceaccount.com" --role roles/artifactregistry.writer
-gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$DEPLOY_SA@$PROJECT_ID.iam.gserviceaccount.com" --role roles/run.developer
+gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$DEPLOY_SA@$PROJECT_ID.iam.gserviceaccount.com" --role roles/run.admin
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA@$PROJECT_ID.iam.gserviceaccount.com" --member "serviceAccount:$DEPLOY_SA@$PROJECT_ID.iam.gserviceaccount.com" --role roles/iam.serviceAccountUser
 
 POOL="github-actions"
