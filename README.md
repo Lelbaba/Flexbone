@@ -85,6 +85,10 @@ Production: **https://api.ocr.lelbaba.top**
 
 Cloud Run origin: **https://flexbone-ocr-dobv35r4bq-el.a.run.app**
 
+Browser test interface: **https://project-37d64f0e-4384-4688-8a1.web.app**
+
+The Firebase-hosted interface supports drag-and-drop single and batch OCR, optional text normalization, image metadata, previews, and copyable results. It has no frontend build step; Firebase serves the files in `hosting/` and forwards API requests to Cloud Run.
+
 ```bash
 curl https://api.ocr.lelbaba.top/health
 curl -F 'image=@test-images/english-eye-chart.jpg;type=image/jpeg' \
