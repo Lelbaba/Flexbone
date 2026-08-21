@@ -7,7 +7,7 @@ from typing import Annotated, cast
 
 from fastapi import FastAPI, File, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from google.cloud import vision_v1
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -78,6 +78,8 @@ def create_app(
             "Extract text from JPEG, PNG, and GIF images without retaining uploads or results."
         ),
         lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
     )
     app.add_middleware(
         RequestBodyLimitMiddleware,
@@ -113,6 +115,11 @@ def create_app(
     @app.get("/healthz", response_model=HealthResponse, include_in_schema=False)
     async def health() -> HealthResponse:
         return HealthResponse()
+
+    @app.get("/docs", include_in_schema=False)
+    @app.get("/docs/", include_in_schema=False)
+    async def docs() -> RedirectResponse:
+        return RedirectResponse(config.public_docs_url)
 
     @app.post(
         "/extract-text",

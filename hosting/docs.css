@@ -1,0 +1,257 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap");
+
+:root {
+  --ink: #17231d;
+  --muted: #68736d;
+  --paper: #f4f1e8;
+  --card: #fffdf7;
+  --line: #d7d5ca;
+  --green: #246246;
+  --pale: #e8f0d3;
+  --code: #15231c;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "Manrope", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+code, pre { font-family: "DM Mono", monospace; }
+.site-header, .layout, footer {
+  width: min(1160px, calc(100% - 40px));
+  margin-inline: auto;
+}
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.brand-mark {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 9px 4px 9px 4px;
+  color: white;
+  background: var(--green);
+  font-family: "DM Mono", monospace;
+}
+.tester-link {
+  color: var(--green);
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+  text-underline-offset: 4px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 800px);
+  gap: clamp(48px, 8vw, 110px);
+  justify-content: center;
+  padding: 70px 0 110px;
+}
+aside {
+  position: sticky;
+  top: 32px;
+  height: fit-content;
+  padding-top: 8px;
+}
+.aside-label, .section-number, .eyebrow {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+aside nav { display: grid; margin: 20px 0 40px; }
+aside nav a {
+  padding: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+aside nav a:hover { color: var(--green); }
+.aside-meta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+}
+.aside-meta strong, .aside-meta a { color: var(--ink); font-weight: 500; }
+main { min-width: 0; }
+.intro { padding: 0 0 70px; }
+.eyebrow { color: var(--green); }
+.eyebrow span {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #6aa74b;
+  box-shadow: 0 0 0 4px rgb(106 167 75 / 13%);
+}
+h1, h2, h3, p { margin-top: 0; }
+h1 {
+  margin: 18px 0;
+  font-size: clamp(45px, 7vw, 72px);
+  line-height: 1;
+  letter-spacing: -.06em;
+}
+.intro > p:not(.eyebrow) {
+  max-width: 660px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+.base-url {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-top: 30px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--card);
+}
+.base-url span {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.base-url code { overflow-wrap: anywhere; color: var(--green); font-size: 12px; }
+main > section:not(.intro) {
+  padding: 62px 0;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 20px;
+}
+.section-number { margin-bottom: 12px; }
+h2 { margin-bottom: 16px; font-size: 30px; letter-spacing: -.04em; }
+h3 { margin: 36px 0 13px; font-size: 13px; letter-spacing: -.01em; }
+section > p:not(.section-number) {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+p code, td code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--green);
+  background: #e9e9df;
+  font-size: .86em;
+}
+.endpoint-heading { display: flex; gap: 13px; align-items: center; }
+.endpoint-heading h2 { margin-bottom: 0; font-family: "DM Mono", monospace; font-size: 25px; }
+.method {
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .08em;
+}
+.method.post { color: white; background: var(--green); }
+.method.get { color: var(--green); background: var(--pale); }
+.endpoint-heading + p { margin-top: 18px; }
+.code-block {
+  overflow: hidden;
+  margin: 18px 0;
+  border-radius: 13px;
+  color: #e8eee9;
+  background: var(--code);
+}
+.code-title {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  color: #9eaaa3;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+pre { overflow-x: auto; margin: 0; padding: 20px; font-size: 12px; line-height: 1.75; }
+.notice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 22px;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 10px;
+  color: var(--green);
+  background: var(--pale);
+  font-size: 12px;
+}
+.notice span { color: #53644f; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; }
+table { width: 100%; border-collapse: collapse; background: var(--card); font-size: 11px; line-height: 1.5; }
+th, td { padding: 13px 14px; border-bottom: 1px solid #e4e2d8; text-align: left; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th {
+  color: var(--muted);
+  background: #eeece4;
+  font-family: "DM Mono", monospace;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.fine-print { margin-top: 18px; font-size: 11px !important; }
+.status {
+  display: inline-block;
+  min-width: 34px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  color: #6c3b31;
+  background: #f3ddd5;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  text-align: center;
+}
+.health-card { margin-top: 62px; padding: 28px !important; border: 0 !important; border-radius: 14px; background: var(--card); }
+.health-card p { margin: 14px 0 0; }
+footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 26px 0 38px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .site-header, .layout, footer { width: min(100% - 24px, 1160px); }
+  .layout { display: block; padding-top: 50px; }
+  aside { display: none; }
+  .intro { padding-bottom: 50px; }
+  .base-url { align-items: flex-start; flex-direction: column; gap: 7px; }
+  main > section:not(.intro) { padding: 48px 0; }
+  .notice { grid-template-columns: 1fr; gap: 5px; }
+  .endpoint-heading { align-items: flex-start; flex-direction: column; }
+  .endpoint-heading h2 { font-size: 20px; }
+  th, td { min-width: 110px; }
+  footer { gap: 8px; flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

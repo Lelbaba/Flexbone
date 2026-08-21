@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     batch_timeout_seconds: float = 50.0
     vision_timeout_seconds: float = 20.0
     vision_max_retries: int = 2
+    public_docs_url: str = "https://ocr.lelbaba.top/api-docs.html"
 
     @property
     def max_request_bytes(self) -> int:

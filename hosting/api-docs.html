@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Flexbone OCR API documentation and examples." />
+    <meta name="theme-color" content="#f4f1e8" />
+    <title>API Documentation · Flexbone OCR</title>
+    <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/docs.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span>Flexbone OCR</span>
+      </a>
+      <a class="tester-link" href="/">Open tester <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="layout">
+      <aside>
+        <p class="aside-label">On this page</p>
+        <nav aria-label="Documentation sections">
+          <a href="#quick-start">Quick start</a>
+          <a href="#single">Single image</a>
+          <a href="#batch">Batch</a>
+          <a href="#responses">Responses</a>
+          <a href="#errors">Errors</a>
+        </nav>
+        <div class="aside-meta">
+          <span>Version</span>
+          <strong>1.0</strong>
+          <span>OpenAPI</span>
+          <a href="https://api.ocr.lelbaba.top/openapi.json">JSON schema ↗</a>
+        </div>
+      </aside>
+
+      <main>
+        <section class="intro">
+          <p class="eyebrow"><span></span> Public REST API</p>
+          <h1>API documentation</h1>
+          <p>
+            Extract English text from JPEG, PNG, and GIF images using Google Cloud Vision.
+            Requests are synchronous and uploads or OCR results are never retained.
+          </p>
+          <div class="base-url">
+            <span>Base URL</span>
+            <code>https://api.ocr.lelbaba.top</code>
+          </div>
+        </section>
+
+        <section id="quick-start">
+          <p class="section-number">01</p>
+          <h2>Quick start</h2>
+          <p>No API key or authentication header is required.</p>
+          <div class="code-block">
+            <div class="code-title">Terminal</div>
+            <pre><code>curl -X POST \
+  -F "image=@test_image.jpg" \
+  https://api.ocr.lelbaba.top/extract-text</code></pre>
+          </div>
+          <div class="notice">
+            <strong>Upload limits</strong>
+            <span>10 MiB per image · 40 megapixels decoded · JPEG, PNG, or GIF</span>
+          </div>
+        </section>
+
+        <section id="single">
+          <p class="section-number">02</p>
+          <div class="endpoint-heading">
+            <span class="method post">POST</span>
+            <h2>/extract-text</h2>
+          </div>
+          <p>Send one image as <code>multipart/form-data</code>.</p>
+
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>image</code></td><td>file</td><td>Yes</td>
+                  <td>JPEG, PNG, or GIF image up to 10 MiB.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Query parameters</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>normalize</code></td><td><code>false</code></td>
+                  <td>Add cleaned text without changing the raw OCR result.</td>
+                </tr>
+                <tr>
+                  <td><code>metadata</code></td><td><code>false</code></td>
+                  <td>Add safe dimensions, byte size, color mode, and format.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Success response · 200</h3>
+          <div class="code-block">
+            <div class="code-title">JSON</div>
+            <pre><code>{
+  "success": true,
+  "text": "extracted text content here",
+  "confidence": 0.95,
+  "processing_time_ms": 1234
+}</code></pre>
+          </div>
+          <p class="fine-print">
+            An image containing no readable text is still successful, with an empty
+            <code>text</code> value and <code>confidence: 0.0</code>.
+          </p>
+        </section>
+
+        <section id="batch">
+          <p class="section-number">03</p>
+          <div class="endpoint-heading">
+            <span class="method post">POST</span>
+            <h2>/extract-text/batch</h2>
+          </div>
+          <p>
+            Send one to five repeated <code>images</code> fields. Each image may be 10 MiB;
+            combined image data may not exceed 25 MiB. Results preserve input order.
+          </p>
+          <div class="code-block">
+            <div class="code-title">Terminal</div>
+            <pre><code>curl -X POST \
+  -F "images=@first.jpg" \
+  -F "images=@second.png" \
+  https://api.ocr.lelbaba.top/extract-text/batch</code></pre>
+          </div>
+          <p class="fine-print">
+            A valid batch returns <code>200</code>. Each item has its own
+            <code>success</code> and <code>status_code</code>, so one invalid image does not
+            discard successful results.
+          </p>
+        </section>
+
+        <section id="responses">
+          <p class="section-number">04</p>
+          <h2>Response fields</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>success</code></td><td>boolean</td><td>Whether OCR succeeded.</td></tr>
+                <tr><td><code>text</code></td><td>string</td><td>Raw text returned by Vision.</td></tr>
+                <tr><td><code>confidence</code></td><td>number</td><td>Confidence from 0.0 to 1.0.</td></tr>
+                <tr><td><code>processing_time_ms</code></td><td>integer</td><td>Server processing time.</td></tr>
+                <tr><td><code>normalized_text</code></td><td>string</td><td>Present when normalization is enabled.</td></tr>
+                <tr><td><code>metadata</code></td><td>object</td><td>Present when metadata is enabled.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="errors">
+          <p class="section-number">05</p>
+          <h2>Error responses</h2>
+          <p>Application errors use one stable JSON envelope.</p>
+          <div class="code-block">
+            <div class="code-title">JSON</div>
+            <pre><code>{
+  "success": false,
+  "error": {
+    "code": "unsupported_image_format",
+    "message": "Only JPEG, PNG, and GIF images are supported."
+  },
+  "processing_time_ms": 3
+}</code></pre>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Status</th><th>Possible codes</th><th>Meaning</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><span class="status">400</span></td><td><code>malformed_request</code>, <code>invalid_batch</code>, <code>empty_upload</code></td><td>Invalid multipart request, image count, or empty file.</td></tr>
+                <tr><td><span class="status">413</span></td><td><code>image_too_large</code>, <code>image_dimensions_too_large</code>, <code>batch_too_large</code>, <code>request_too_large</code></td><td>A documented size or dimension limit was exceeded.</td></tr>
+                <tr><td><span class="status">415</span></td><td><code>unsupported_image_format</code></td><td>Decoded image is not JPEG, PNG, or GIF.</td></tr>
+                <tr><td><span class="status">422</span></td><td><code>corrupt_image</code></td><td>Image data is corrupt or unreadable.</td></tr>
+                <tr><td><span class="status">503</span></td><td><code>ocr_unavailable</code></td><td>OCR dependency is temporarily unavailable.</td></tr>
+                <tr><td><span class="status">504</span></td><td><code>ocr_deadline_exceeded</code></td><td>OCR exceeded its processing deadline.</td></tr>
+                <tr><td><span class="status">500</span></td><td><code>internal_error</code></td><td>Unexpected sanitized server error.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="health-card">
+          <div class="endpoint-heading">
+            <span class="method get">GET</span>
+            <h2>/health</h2>
+          </div>
+          <p>Returns <code>{"status":"ok"}</code> without calling the OCR provider.</p>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      <span>Flexbone OCR API · v1.0</span>
+      <a href="https://api.ocr.lelbaba.top/openapi.json">OpenAPI JSON</a>
+    </footer>
+  </body>
+</html>

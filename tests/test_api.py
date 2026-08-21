@@ -133,3 +133,10 @@ def test_openapi_documents_contract(client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
     assert "/extract-text" in schema["paths"]
     assert "415" in schema["paths"]["/extract-text"]["post"]["responses"]
+
+
+def test_docs_redirects_to_public_guide(client: TestClient) -> None:
+    response = client.get("/docs", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "https://ocr.lelbaba.top/api-docs.html"
