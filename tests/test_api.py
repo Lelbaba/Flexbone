@@ -23,6 +23,15 @@ def test_missing_file(client: TestClient) -> None:
     assert response.json()["error"]["code"] == "malformed_request"
 
 
+def test_duplicate_file(client: TestClient, jpeg: bytes) -> None:
+    response = client.post(
+        "/extract-text",
+        files=[("image", ("a.jpg", jpeg, "image/jpeg")), ("image", ("b.jpg", jpeg, "image/jpeg"))],
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "malformed_request"
+
+
 def test_empty_file(client: TestClient) -> None:
     response = client.post("/extract-text", files={"image": ("x.jpg", b"", "image/jpeg")})
     assert response.status_code == 400

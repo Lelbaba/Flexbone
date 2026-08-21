@@ -96,6 +96,12 @@ def create_app(
         request: Request, image: Annotated[UploadFile, File(description="JPEG image, up to 10 MiB")]
     ) -> SuccessResponse:
         request.state.started = time.perf_counter()
+        uploads = (await request.form()).getlist("image")
+        if len(uploads) != 1:
+            for upload in uploads:
+                if isinstance(upload, UploadFile):
+                    await upload.close()
+            raise MalformedRequest
         service = cast(ExtractTextService, request.app.state.extract_service)
         response, retry_count = await service.execute(image)
         logger.info(
