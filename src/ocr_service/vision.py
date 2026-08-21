@@ -1,6 +1,6 @@
 import asyncio
 import random
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from google.api_core import exceptions as google_exceptions
 from google.cloud import vision_v1
@@ -30,7 +30,7 @@ class GoogleVisionProvider:
         client: vision_v1.ImageAnnotatorAsyncClient,
         timeout: float = 20.0,
         max_retries: int = 2,
-        sleep: Callable[[float], object] | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._client = client
         self._timeout = timeout
@@ -44,7 +44,10 @@ class GoogleVisionProvider:
         )
         for attempt in range(self._max_retries + 1):
             try:
-                response = await self._client.annotate_image(request=request, timeout=self._timeout)
+                batch = await self._client.batch_annotate_images(
+                    requests=[request], timeout=self._timeout
+                )
+                response = batch.responses[0]
                 if response.error.message:
                     raise OCRUnavailable
                 annotation = response.full_text_annotation
@@ -63,13 +66,8 @@ class GoogleVisionProvider:
             except (google_exceptions.ResourceExhausted, google_exceptions.TooManyRequests) as exc:
                 raise OCRUnavailable from exc
             delay = min(2.0, 0.25 * (2**attempt)) + random.uniform(0, 0.1)
-            if self._sleep is None:
-                await asyncio.sleep(delay)
-            else:
-                result = self._sleep(delay)
-                if hasattr(result, "__await__"):
-                    await result  # type: ignore[misc]
+            await self._sleep(delay)
         raise OCRUnavailable
 
     async def close(self) -> None:
-        await self._client.close()
+        await self._client.transport.close()  # type: ignore[no-untyped-call]

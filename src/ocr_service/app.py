@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -96,7 +96,8 @@ def create_app(
         request: Request, image: Annotated[UploadFile, File(description="JPEG image, up to 10 MiB")]
     ) -> SuccessResponse:
         request.state.started = time.perf_counter()
-        response, retry_count = await request.app.state.extract_service.execute(image)
+        service = cast(ExtractTextService, request.app.state.extract_service)
+        response, retry_count = await service.execute(image)
         logger.info(
             json.dumps(
                 {

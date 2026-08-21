@@ -1,6 +1,9 @@
 .venv/
 .verify-venv/
 .check-venv/
+.runtime-venv/
+.test-venv/
+.py312-venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
