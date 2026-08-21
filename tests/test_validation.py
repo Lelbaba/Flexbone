@@ -21,4 +21,3 @@ async def test_first_byte_over_limit() -> None:
     with pytest.raises(ImageTooLarge):
         await read_validated_jpeg(upload, 10)
     assert upload.file.closed
-

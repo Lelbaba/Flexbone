@@ -28,4 +28,3 @@ def jpeg() -> bytes:
 def client() -> Iterator[TestClient]:
     with TestClient(create_app(provider_factory=FakeProvider)) as value:
         yield value
-

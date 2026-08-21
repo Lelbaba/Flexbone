@@ -24,4 +24,3 @@ class ExtractTextService:
             ),
             result.retry_count,
         )
-

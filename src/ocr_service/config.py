@@ -12,4 +12,3 @@ class Settings(BaseSettings):
     @property
     def max_request_bytes(self) -> int:
         return self.max_image_bytes + self.request_overhead_bytes
-

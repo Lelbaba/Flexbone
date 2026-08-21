@@ -50,4 +50,3 @@ class OCRDeadlineExceeded(AppError):
     code = "ocr_deadline_exceeded"
     message = "The OCR service did not respond in time."
     status_code = 504
-

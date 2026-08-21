@@ -32,4 +32,3 @@ async def read_validated_jpeg(upload: UploadFile, max_bytes: int) -> bytes:
         return raw
     finally:
         await upload.close()
-

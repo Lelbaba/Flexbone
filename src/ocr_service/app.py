@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated
 
 from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -38,10 +38,14 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        provider = provider_factory() if provider_factory else GoogleVisionProvider(
-            vision_v1.ImageAnnotatorAsyncClient(),
-            timeout=config.vision_timeout_seconds,
-            max_retries=config.vision_max_retries,
+        provider = (
+            provider_factory()
+            if provider_factory
+            else GoogleVisionProvider(
+                vision_v1.ImageAnnotatorAsyncClient(),
+                timeout=config.vision_timeout_seconds,
+                max_retries=config.vision_max_retries,
+            )
         )
         app.state.provider = provider
         app.state.extract_service = ExtractTextService(provider, config.max_image_bytes)
@@ -69,7 +73,9 @@ def create_app(
     @app.exception_handler(StarletteHTTPException)
     async def http_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         if exc.status_code in {400, 404, 405}:
-            return _error(MalformedRequest(), getattr(request.state, "started", time.perf_counter()))
+            return _error(
+                MalformedRequest(), getattr(request.state, "started", time.perf_counter())
+            )
         return _error(AppError(), getattr(request.state, "started", time.perf_counter()))
 
     @app.exception_handler(Exception)
@@ -84,22 +90,26 @@ def create_app(
     @app.post(
         "/extract-text",
         response_model=SuccessResponse,
-        responses={
-            code: {"model": ErrorResponse}
-            for code in (400, 413, 415, 422, 500, 503, 504)
-        },
+        responses={code: {"model": ErrorResponse} for code in (400, 413, 415, 422, 500, 503, 504)},
     )
-    async def extract_text(request: Request, image: UploadFile = File(...)) -> SuccessResponse:
+    async def extract_text(
+        request: Request, image: Annotated[UploadFile, File(description="JPEG image, up to 10 MiB")]
+    ) -> SuccessResponse:
         request.state.started = time.perf_counter()
         response, retry_count = await request.app.state.extract_service.execute(image)
-        logger.info(json.dumps({
-            "event": "ocr_complete", "status": 200,
-            "latency_ms": response.processing_time_ms, "retry_count": retry_count,
-        }))
+        logger.info(
+            json.dumps(
+                {
+                    "event": "ocr_complete",
+                    "status": 200,
+                    "latency_ms": response.processing_time_ms,
+                    "retry_count": retry_count,
+                }
+            )
+        )
         return response
 
     return app
 
 
 app = create_app()
-

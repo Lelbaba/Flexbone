@@ -30,13 +30,17 @@ def test_empty_file(client: TestClient) -> None:
 
 
 def test_png_renamed_to_jpeg(client: TestClient) -> None:
-    response = client.post("/extract-text", files={"image": ("x.jpg", b"\x89PNG\r\n", "image/jpeg")})
+    response = client.post(
+        "/extract-text", files={"image": ("x.jpg", b"\x89PNG\r\n", "image/jpeg")}
+    )
     assert response.status_code == 415
     assert response.json()["error"]["code"] == "unsupported_image_format"
 
 
 def test_corrupt_jpeg(client: TestClient) -> None:
-    response = client.post("/extract-text", files={"image": ("x.jpg", b"\xff\xd8\xffbroken", "image/jpeg")})
+    response = client.post(
+        "/extract-text", files={"image": ("x.jpg", b"\xff\xd8\xffbroken", "image/jpeg")}
+    )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "corrupt_image"
 
@@ -52,4 +56,3 @@ def test_openapi_documents_contract(client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
     assert "/extract-text" in schema["paths"]
     assert "415" in schema["paths"]["/extract-text"]["post"]["responses"]
-

@@ -54,7 +54,10 @@ class GoogleVisionProvider:
             except google_exceptions.DeadlineExceeded as exc:
                 if attempt == self._max_retries:
                     raise OCRDeadlineExceeded from exc
-            except (google_exceptions.ServiceUnavailable, google_exceptions.InternalServerError) as exc:
+            except (
+                google_exceptions.ServiceUnavailable,
+                google_exceptions.InternalServerError,
+            ) as exc:
                 if attempt == self._max_retries:
                     raise OCRUnavailable from exc
             except (google_exceptions.ResourceExhausted, google_exceptions.TooManyRequests) as exc:
@@ -70,4 +73,3 @@ class GoogleVisionProvider:
 
     async def close(self) -> None:
         await self._client.close()
-

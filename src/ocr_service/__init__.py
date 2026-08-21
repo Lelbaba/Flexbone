@@ -1,2 +1,1 @@
 """Flexbone OCR service."""
-

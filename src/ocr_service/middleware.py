@@ -1,8 +1,8 @@
 import time
 import uuid
-from collections.abc import Awaitable, Callable
-from starlette.responses import JSONResponse
+
 from starlette.datastructures import MutableHeaders
+from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .errors import RequestTooLarge
@@ -51,6 +51,7 @@ class RequestBodyLimitMiddleware:
                 "processing_time_ms": 0,
             },
         )
+
         async def empty_receive() -> Message:
             return {"type": "http.disconnect"}
 
@@ -73,7 +74,7 @@ class RequestContextMiddleware:
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
                 headers["X-Request-ID"] = request_id
-                headers["Server-Timing"] = f'app;dur={(time.perf_counter()-started)*1000:.1f}'
+                headers["Server-Timing"] = f"app;dur={(time.perf_counter() - started) * 1000:.1f}"
             await send(message)
 
         await self.app(scope, receive, add_headers)
