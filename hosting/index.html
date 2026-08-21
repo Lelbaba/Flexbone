@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Extract English text from images with the Flexbone OCR API."
+    />
+    <meta name="theme-color" content="#f4f1e8" />
+    <title>Flexbone OCR</title>
+    <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Flexbone OCR home">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span>Flexbone OCR</span>
+      </a>
+      <a class="api-link" href="/docs">API docs <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow"><span class="status-dot"></span> Google Cloud Vision</p>
+        <h1>Turn images<br />into <em>useful text.</em></h1>
+        <p class="intro">
+          Upload a photo, scan, or screenshot. Your files are processed securely and are
+          never retained.
+        </p>
+      </section>
+
+      <section class="workspace" aria-labelledby="upload-heading">
+        <div class="workspace-head">
+          <div>
+            <p class="step">01 / Upload</p>
+            <h2 id="upload-heading">Choose your images</h2>
+          </div>
+          <div class="mode-switch" role="group" aria-label="OCR mode">
+            <button class="mode active" type="button" data-mode="single">Single</button>
+            <button class="mode" type="button" data-mode="batch">Batch</button>
+          </div>
+        </div>
+
+        <input
+          id="file-input"
+          class="visually-hidden"
+          type="file"
+          accept="image/jpeg,image/png,image/gif"
+        />
+        <label class="drop-zone" for="file-input" id="drop-zone">
+          <span class="upload-icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M24 32V9m0 0-8 8m8-8 8 8M10 29v8a4 4 0 0 0 4 4h20a4 4 0 0 0 4-4v-8" />
+            </svg>
+          </span>
+          <strong>Drop images here or <span>browse</span></strong>
+          <small id="drop-help">JPEG, PNG, or GIF · Maximum 10 MiB</small>
+        </label>
+
+        <div id="file-list" class="file-list" aria-live="polite"></div>
+
+        <div class="options">
+          <label class="check-option">
+            <input id="normalize" type="checkbox" />
+            <span class="checkbox"></span>
+            <span><strong>Clean up text</strong><small>Normalize spacing and line endings</small></span>
+          </label>
+          <label class="check-option">
+            <input id="metadata" type="checkbox" />
+            <span class="checkbox"></span>
+            <span><strong>Image details</strong><small>Include dimensions, format, and size</small></span>
+          </label>
+        </div>
+
+        <div id="form-error" class="form-error" role="alert" hidden></div>
+        <button id="extract-button" class="extract-button" type="button" disabled>
+          <span class="button-label">Extract text</span>
+          <span class="button-arrow" aria-hidden="true">→</span>
+        </button>
+      </section>
+
+      <section id="results-section" class="results-section" aria-labelledby="results-heading" hidden>
+        <div class="results-head">
+          <div>
+            <p class="step">02 / Result</p>
+            <h2 id="results-heading">Extracted text</h2>
+          </div>
+          <div id="result-summary" class="result-summary"></div>
+        </div>
+        <div id="results" class="results"></div>
+      </section>
+
+      <section class="privacy-note">
+        <span aria-hidden="true">◌</span>
+        <div>
+          <h2>Private by design</h2>
+          <p>Images and extracted text are processed in memory and never stored.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Flexbone OCR</span>
+      <span>Built for fast, stateless text extraction.</span>
+    </footer>
+  </body>
+</html>
