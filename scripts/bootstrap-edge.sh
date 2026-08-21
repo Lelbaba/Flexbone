@@ -35,8 +35,7 @@ gcloud compute backend-services describe "$BACKEND" --global >/dev/null 2>&1 || 
   gcloud compute backend-services create "$BACKEND" \
     --global \
     --load-balancing-scheme EXTERNAL_MANAGED \
-    --protocol HTTP \
-    --timeout 60s
+    --protocol HTTP
 
 if ! gcloud compute backend-services describe "$BACKEND" --global --format=json | \
   jq -e --arg suffix "/regions/$REGION/networkEndpointGroups/$NEG" \
