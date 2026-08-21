@@ -18,5 +18,10 @@ text_image("Low contrast sample", "#aaaaaa", "#dddddd").save(
     SAMPLES / "low-contrast.jpg", quality=85
 )
 Image.new("RGB", (640, 180), "white").save(SAMPLES / "blank.jpg", quality=90)
-text_image("Unsupported PNG").save(SAMPLES / "unsupported.png")
+text_image("Supported PNG sample").save(SAMPLES / "supported.png")
+gif_frames = [text_image("Animated GIF first frame"), text_image("Ignored second frame")]
+gif_frames[0].save(
+    SAMPLES / "animated.gif", save_all=True, append_images=gif_frames[1:], duration=400, loop=0
+)
+text_image("Unsupported BMP sample").save(SAMPLES / "unsupported.bmp")
 (SAMPLES / "corrupt.jpg").write_bytes(b"\xff\xd8\xfftruncated")

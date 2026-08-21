@@ -57,7 +57,9 @@ def create_app(
     app = FastAPI(
         title="Flexbone OCR API",
         version="1.0.0",
-        description="Extract text from JPEG images without retaining uploads or results.",
+        description=(
+            "Extract text from JPEG, PNG, and GIF images without retaining uploads or results."
+        ),
         lifespan=lifespan,
     )
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=config.max_request_bytes)

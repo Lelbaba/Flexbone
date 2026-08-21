@@ -1,6 +1,6 @@
 # Flexbone OCR API
 
-A stateless FastAPI service that validates JPEG uploads and sends their original bytes to Google Cloud Vision `DOCUMENT_TEXT_DETECTION`. Uploads and OCR text are never retained or logged.
+A stateless FastAPI service that validates JPEG, PNG, and GIF uploads and sends their original bytes to Google Cloud Vision `DOCUMENT_TEXT_DETECTION`. Animated GIFs use their first frame. Uploads and OCR text are never retained or logged.
 
 ## API
 
@@ -12,22 +12,31 @@ uv sync --frozen
 uv run uvicorn ocr_service.app:app --reload
 ```
 
-Extract text (maximum image size: exactly 10 MiB):
+Extract text (JPEG, PNG, or GIF; maximum image size: exactly 10 MiB and 40 megapixels decoded):
 
 ```bash
 curl -F 'image=@sample.jpg;type=image/jpeg' http://localhost:8000/extract-text
 ```
 
-Success returns `{"success":true,"text":"...","confidence":0.95,"processing_time_ms":123}`. A readable JPEG containing no text is also successful, with empty text and zero confidence. `/health` is the public liveness check and never calls Vision; `/healthz` remains a local alias because Cloud Run reserves paths ending in `z`. Interactive OpenAPI documentation is at `/docs`.
+Optional response features are enabled with query parameters:
+
+```bash
+curl -F 'image=@sample.png;type=image/png' \
+  'http://localhost:8000/extract-text?metadata=true&normalize=true'
+```
+
+`metadata=true` adds width, height, byte size, decoded format, and color mode without exposing EXIF. `normalize=true` adds `normalized_text` while preserving raw OCR output in `text`.
+
+Success returns `{"success":true,"text":"...","confidence":0.95,"processing_time_ms":123}`. A readable image containing no text is also successful, with empty text and zero confidence. `/health` is the public liveness check and never calls Vision; `/healthz` remains a local alias because Cloud Run reserves paths ending in `z`. Interactive OpenAPI documentation is at `/docs`.
 
 Errors always use `{"success":false,"error":{"code":"...","message":"..."},"processing_time_ms":3}`:
 
 | Status | Codes | Meaning |
 |---|---|---|
 | 400 | `malformed_request`, `empty_upload` | Missing/bad multipart data or empty file |
-| 413 | `image_too_large`, `request_too_large` | File/body exceeds its bound |
-| 415 | `unsupported_image_format` | Decoded input is not JPEG |
-| 422 | `corrupt_image` | Unreadable JPEG |
+| 413 | `image_too_large`, `image_dimensions_too_large`, `request_too_large` | File, decoded dimensions, or body exceeds its bound |
+| 415 | `unsupported_image_format` | Decoded input is not JPEG, PNG, or GIF |
+| 422 | `corrupt_image` | Unreadable image |
 | 503 | `ocr_unavailable` | Vision unavailable or quota exhausted |
 | 504 | `ocr_deadline_exceeded` | Vision deadline exhausted after retries |
 | 500 | `internal_error` | Sanitized unexpected failure |
