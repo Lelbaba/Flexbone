@@ -8,6 +8,7 @@ A stateless FastAPI service that validates image uploads and sends their origina
 |---|---|
 | Browser tester | <https://ocr.lelbaba.top> |
 | API | <https://api.ocr.lelbaba.top> |
+| Direct Cloud Run service | <https://flexbone-ocr-dobv35r4bq-el.a.run.app> |
 | API guide | <https://api.ocr.lelbaba.top/docs> |
 | OpenAPI schema | <https://api.ocr.lelbaba.top/openapi.json> |
 | Health check | <https://api.ocr.lelbaba.top/health> |
@@ -67,6 +68,7 @@ The application reads configuration from `OCR_`-prefixed environment variables:
 | `OCR_MAX_BATCH_IMAGE_BYTES` | `26214400` | Maximum combined image bytes |
 | `OCR_BATCH_MAX_CONCURRENCY` | `2` | Concurrent Vision calls per batch |
 | `OCR_BATCH_TIMEOUT_SECONDS` | `50` | Whole-batch processing budget |
+| `OCR_REQUEST_TIMEOUT_SECONDS` | `50` | Whole single-image request budget |
 | `OCR_VISION_TIMEOUT_SECONDS` | `20` | Deadline for each Vision attempt |
 | `OCR_VISION_MAX_RETRIES` | `2` | Retries after the initial attempt |
 | `OCR_PUBLIC_DOCS_URL` | `https://ocr.lelbaba.top/api-docs.html` | Target of `/docs` |
@@ -94,7 +96,7 @@ JPEG, PNG, and GIF are supported; only the first frame of an animated GIF is pro
 
 ## Quality checks
 
-The test suite uses an injected fake OCR provider and does not need Google credentials:
+The ordinary test suite injects a fake OCR function and does not need Google credentials:
 
 ```bash
 uv sync --frozen
@@ -106,6 +108,17 @@ uv run pytest
 ```
 
 The configured coverage gate is 85%. API, validation, batch concurrency, confidence aggregation, provider failure, retry, and error-contract behavior are covered.
+
+To verify the deployed service against real Vision with normal, rotated, low-contrast,
+handwritten, degraded, and blank fixtures:
+
+```bash
+OCR_INTEGRATION_BASE_URL=https://your-service-url \
+  uv run pytest tests/test_integration.py -m integration --no-cov
+```
+
+The production workflow runs this suite against the new Cloud Run revision after every
+manual deployment.
 
 ## Container
 
@@ -142,6 +155,9 @@ The script prints the two Workload Identity Federation values needed by GitHub A
 - [Infrastructure setup](docs/INFRASTRUCTURE.md): reproducible, from-scratch cloud and domain deployment.
 - [API guide](https://ocr.lelbaba.top/api-docs.html): public request and response contract.
 - [Test images](test-images/README.md): redistribution-safe OCR fixtures and their intended use.
+
+Because the GitHub repository is private, an evaluator also needs explicit repository access;
+the public service and API documentation do not require authentication.
 
 ## Troubleshooting
 

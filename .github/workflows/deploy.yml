@@ -11,6 +11,9 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
@@ -36,6 +39,13 @@ jobs:
             --default-url --no-invoker-iam-check --quiet
           URL="$(gcloud run services describe flexbone-ocr --region "$REGION" --format='value(status.url)')"
           curl --fail --retry 5 "$URL/health"
+          echo "CLOUD_RUN_URL=$URL" >> "$GITHUB_ENV"
         env:
           REGION: ${{ vars.GCP_REGION }}
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      - name: Verify real OCR
+        run: |
+          uv sync --frozen
+          uv run pytest tests/test_integration.py -m integration --no-cov
+        env:
+          OCR_INTEGRATION_BASE_URL: ${{ env.CLOUD_RUN_URL }}

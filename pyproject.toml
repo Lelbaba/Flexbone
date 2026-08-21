@@ -33,6 +33,7 @@ packages = ["src/ocr_service"]
 addopts = "--cov=ocr_service --cov-report=term-missing --cov-fail-under=85"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["integration: calls a deployed OCR service and Google Cloud Vision"]
 
 [tool.ruff]
 line-length = 100
