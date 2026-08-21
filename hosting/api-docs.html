@@ -178,7 +178,7 @@
   "success": false,
   "error": {
     "code": "unsupported_image_format",
-    "message": "Only JPEG, PNG, and GIF images are supported."
+    "message": "Only JPG/JPEG, PNG, and GIF images are supported."
   },
   "processing_time_ms": 3
 }</code></pre>
@@ -193,6 +193,8 @@
                 <tr><td><span class="status">413</span></td><td><code>image_too_large</code>, <code>image_dimensions_too_large</code>, <code>batch_too_large</code>, <code>request_too_large</code></td><td>A documented size or dimension limit was exceeded.</td></tr>
                 <tr><td><span class="status">415</span></td><td><code>unsupported_image_format</code></td><td>Decoded image is not JPEG, PNG, or GIF.</td></tr>
                 <tr><td><span class="status">422</span></td><td><code>corrupt_image</code></td><td>Image data is corrupt or unreadable.</td></tr>
+                <tr><td><span class="status">404</span></td><td><code>not_found</code></td><td>The requested endpoint does not exist.</td></tr>
+                <tr><td><span class="status">405</span></td><td><code>method_not_allowed</code></td><td>The endpoint does not accept this HTTP method.</td></tr>
                 <tr><td><span class="status">503</span></td><td><code>ocr_unavailable</code></td><td>OCR dependency is temporarily unavailable.</td></tr>
                 <tr><td><span class="status">504</span></td><td><code>ocr_deadline_exceeded</code></td><td>OCR exceeded its processing deadline.</td></tr>
                 <tr><td><span class="status">500</span></td><td><code>internal_error</code></td><td>Unexpected sanitized server error.</td></tr>
@@ -206,7 +208,7 @@
             <span class="method get">GET</span>
             <h2>/health</h2>
           </div>
-          <p>Returns <code>{"status":"ok"}</code> without calling the OCR provider.</p>
+          <p>Returns <code>{"status":"ok"}</code> without calling Google Vision.</p>
         </section>
       </main>
     </div>

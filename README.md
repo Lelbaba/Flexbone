@@ -162,7 +162,7 @@ the public service and API documentation do not require authentication.
 ## Troubleshooting
 
 - `503 ocr_unavailable`: verify ADC, project billing, `vision.googleapis.com`, runtime service-account access, and Vision quota.
-- `504 ocr_deadline_exceeded`: retry later or use a clearer/smaller image; the provider deadline has been exhausted.
+- `504 ocr_deadline_exceeded`: retry later or use a clearer/smaller image; the Vision or whole-request deadline has been exhausted.
 - `413`: check per-image, combined batch, decoded dimension, and multipart body limits.
 - Local credential quota errors: rerun `gcloud auth application-default set-quota-project YOUR_PROJECT_ID`.
 - Deployment authentication errors: verify the four GitHub variables and the repository constraint on the WIF provider.

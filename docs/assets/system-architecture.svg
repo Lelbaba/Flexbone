@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
   <title id="title">Flexbone OCR overall system architecture</title>
-  <desc id="desc">Active Firebase to Cloud Run OCR path, staged load balancer and Cloud Armor path, Google Vision, logging, and GitHub delivery infrastructure.</desc>
+  <desc id="desc">Active Firebase to Cloud Run OCR path, staged load balancer and Cloud Armor path, Google Vision, logging, and keyless GitHub delivery.</desc>
   <defs>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
       <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#17231d" flood-opacity="0.08"/>
@@ -96,11 +96,11 @@
   <text class="label-light" x="968" y="507">Validation</text>
   <text class="meta-light" x="968" y="528">Bounded reads · Pillow verify</text>
   <rect x="724" y="577" width="198" height="78" rx="11" fill="#28543e" stroke="#3f7057"/>
-  <text class="label-light" x="742" y="605">Application services</text>
-  <text class="meta-light" x="742" y="626">Single · batch · timing</text>
-  <text class="meta-light" x="742" y="642">Semaphore · normalization</text>
+  <text class="label-light" x="742" y="605">Processing functions</text>
+  <text class="meta-light" x="742" y="626">Validate · single · batch</text>
+  <text class="meta-light" x="742" y="642">Timing · normalize · limit</text>
   <rect x="950" y="577" width="210" height="78" rx="11" fill="#28543e" stroke="#3f7057"/>
-  <text class="label-light" x="968" y="605">Vision adapter</text>
+  <text class="label-light" x="968" y="605">Vision function</text>
   <text class="meta-light" x="968" y="626">Async client · retries</text>
   <text class="meta-light" x="968" y="642">Text + confidence mapping</text>
 

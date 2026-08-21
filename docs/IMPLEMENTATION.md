@@ -1,214 +1,213 @@
 # Implementation deep dive
 
-This document explains how Flexbone OCR is structured, why its tools were selected, how a request moves through the system, and where its boundaries are. For commands that create the cloud resources, see [Infrastructure setup](INFRASTRUCTURE.md).
+Flexbone OCR is one stateless web process. It accepts an image, validates it, calls Google
+Vision, and returns JSON. The production code is deliberately flat: six runtime modules, one
+error class, and no database, queue, cache, repository layer, DI framework, or provider class.
 
-## System architecture
+For cloud setup commands, see [Infrastructure setup](INFRASTRUCTURE.md).
 
-The diagram distinguishes the active request path from the provisioned edge path that is still in preview.
+## Overall system
 
 ![Flexbone OCR overall system architecture](assets/system-architecture.svg)
 
-Solid arrows are active production traffic. Dotted arrows are provisioned but not traffic-serving as of 2026-08-22: the load-balancer certificate is active and Cloud Armor rules are in preview, but `api.ocr.lelbaba.top` still resolves to Firebase Hosting and Cloud Run ingress still allows direct internet traffic.
+Solid arrows are the active production path. The amber dotted path is a provisioned load
+balancer and Cloud Armor configuration that is not yet authoritative. Today both custom domains
+use Firebase Hosting; API paths are rewritten to Cloud Run. Cloud Run calls Vision with its
+dedicated runtime identity and writes safe events to Cloud Logging.
 
-### Logical request flow
+GitHub Actions uses short-lived credentials from Workload Identity Federation. It builds an
+immutable commit-SHA image, stores it in Artifact Registry, deploys a Cloud Run revision, and
+runs real OCR checks against that revision.
 
-Infrastructure concerns end at the ASGI boundary. Inside the container, every OCR request follows the same dependency direction:
+## The simplest mental model
 
 ![FastAPI OCR request lifecycle](assets/request-flow.svg)
 
-The dependency direction is inward toward domain contracts. The application service knows the `OCRProvider` protocol, not the Google client implementation, which keeps business behavior testable without cloud credentials.
+Follow four files to understand nearly all behavior:
+
+1. `app.py` receives HTTP requests and returns HTTP responses.
+2. `processing.py` reads, validates, and coordinates images.
+3. `vision.py` makes the Google Vision call.
+4. `models.py` defines response shapes and public errors.
+
+`middleware.py` protects the HTTP boundary, while `config.py` contains limits and timeouts.
+That is the complete runtime design.
 
 ## Repository structure
 
 ```text
 Flexbone/
-├── src/ocr_service/
-│   ├── app.py              FastAPI composition, routes, lifespan, error mapping
-│   ├── config.py           Typed OCR_* environment settings
-│   ├── domain.py           Provider port, value objects, response DTOs
-│   ├── errors.py           Stable application error taxonomy
-│   ├── middleware.py       Body limits, request IDs, Server-Timing
-│   ├── service.py          Single and batch extraction use cases
-│   ├── validation.py       Bounded reads and decoded image verification
-│   └── vision.py           Asynchronous Google Vision adapter and retries
-├── tests/                  Unit and HTTP contract tests with fake providers
-├── hosting/                Static Firebase tester and human API guide
-├── samples/                Generated functional fixtures
-├── test-images/            Wider OCR quality and angle fixtures
-├── scripts/
-│   ├── bootstrap-gcp.sh    Core APIs, IAM, Artifact Registry, GitHub WIF
-│   ├── bootstrap-edge.sh   Load balancer, certificate, NEG, Cloud Armor
-│   └── deploy.sh           Local container build, push, and Cloud Run deploy
-├── .github/workflows/      CI and manual production delivery
-├── Dockerfile              Reproducible non-root runtime image
-├── firebase.json           Static hosting and current Cloud Run rewrite
-├── pyproject.toml          Dependencies and quality-tool configuration
-└── uv.lock                 Reproducible dependency resolution
+├── src/ocr_service/          The six-module FastAPI application
+├── tests/                    Offline tests plus opt-in real OCR tests
+├── hosting/                  Static Firebase tester and API guide
+├── samples/                  Small generated API fixtures
+├── test-images/              English handwriting and degraded fixtures
+├── scripts/                  GCP, edge, fixture, and deployment scripts
+├── docs/                     Implementation and infrastructure guides
+├── .github/workflows/        CI and manual production deployment
+├── Dockerfile                Non-root Cloud Run container
+├── firebase.json             Hosting files and Cloud Run rewrite
+├── pyproject.toml            Package and quality-tool settings
+└── uv.lock                   Exact dependency lock
 ```
 
-## Module responsibilities
+### Runtime modules
 
-| Module | Owns | Deliberately does not own |
-|---|---|---|
-| `app.py` | Process composition, routes, lifespan resources, dependency wiring, exception-to-HTTP mapping, safe completion logs | Image rules or Vision response interpretation |
-| `config.py` | Validated defaults and `OCR_` environment overrides | Secret storage; the service uses Application Default Credentials |
-| `domain.py` | `OCRProvider` protocol, internal value objects, Pydantic response contracts | Google-specific classes or HTTP route logic |
-| `errors.py` | Public error codes, safe messages, and status codes | Vendor error text, stack traces, or logging policy |
-| `middleware.py` | Early request-body rejection, correlation IDs, and `Server-Timing` | OCR orchestration |
-| `validation.py` | Bounded byte reads, supported decoded formats, corruption checks, dimension limits, safe metadata | OCR or text cleanup |
-| `service.py` | Use-case timing, provider invocation, normalization, batch ordering, concurrency and timeout policy | HTTP parsing or Google SDK details |
-| `vision.py` | Vision request construction, retry classification, canonical text extraction, confidence calculation, client shutdown | Upload validation or response serialization |
+| File | Responsibility |
+|---|---|
+| `app.py` | Creates FastAPI, owns the Vision client lifecycle, defines routes, maps errors, and writes completion logs. |
+| `processing.py` | Reads uploads, uses Pillow to verify images, applies limits/timeouts, normalizes text, and coordinates single or batch OCR. |
+| `vision.py` | Sends `DOCUMENT_TEXT_DETECTION`, retries transient failures, extracts text, and calculates confidence. |
+| `models.py` | Holds Pydantic response models, two small internal data records, the error table, and the single `AppError` class. |
+| `middleware.py` | Rejects oversized request bodies early, creates request IDs, and adds timing headers. |
+| `config.py` | Reads typed `OCR_` environment variables and computes request-body limits. |
 
-## Design patterns
+There is intentionally no separate domain, service, validation, or adapter package. Those layers
+would mostly forward calls in a project this size. Validation and orchestration live together in
+`processing.py`, and the only external operation is the plainly named `vision.extract_text()`.
 
-### Ports and adapters
+## Why there are still a few classes
 
-`OCRProvider` is the domain port. `GoogleVisionProvider` is its infrastructure adapter. `ExtractTextService` accepts the port through constructor injection, so tests substitute a small in-memory fake. This avoids importing or monkey-patching Google SDK behavior in application tests and leaves room for another OCR engine only if a real requirement appears.
+The remaining classes are required by a library or are simple data shapes:
 
-### Application service / use case
+- FastAPI/Pydantic response classes generate and enforce the JSON contract.
+- `Settings` is a Pydantic Settings model for typed environment configuration.
+- `ImageMetadata` and `ValidatedImage` are immutable records that keep bytes and decoded facts
+  together.
+- `AppError` carries one error code. Status and safe message are looked up in one `ERRORS` table.
+- The two middleware classes are required by the ASGI middleware calling convention.
 
-`ExtractTextService` represents one single-image extraction. It sequences validation, OCR, timing, optional normalization, and response construction. `ExtractBatchService` composes the single-image operation while adding batch-specific limits, ordering, partial failure, concurrency, and deadline behavior. Routes remain transport adapters rather than accumulating business rules.
+There are no business-service classes. Tests inject one async OCR function into `create_app()`;
+production supplies the Google Vision function with its client and settings already attached.
+This is the smallest dependency seam needed to test the API without cloud credentials.
 
-### Constructor dependency injection
+## Single-image request
 
-`create_app()` accepts a provider factory and optional settings. Production creates one asynchronous Vision client during FastAPI lifespan; tests pass a fake provider. This provides the useful part of dependency injection without a container framework or global mutable singleton.
+1. `RequestContextMiddleware` records the start time and either accepts a bounded client request
+   ID or creates a UUID.
+2. `RequestBodyLimitMiddleware` checks `Content-Length` and also counts streamed ASGI chunks.
+   A chunked request therefore cannot evade the body limit.
+3. FastAPI parses multipart data. The route requires exactly one `image` field.
+4. `read_image()` reads 64 KiB chunks and stops on the first byte beyond 10 MiB.
+5. `inspect_image()` runs in a worker thread so Pillow cannot block the async event loop. It
+   detects the decoded format, rejects excessive pixel dimensions, captures safe metadata, and
+   calls `verify()` to catch corruption.
+6. The original bytes go unchanged to `vision.extract_text()`. The application never
+   recompresses or stores them.
+7. The result is mapped to `SuccessResponse`; optional normalization and metadata are separate
+   fields, so raw OCR text is preserved.
+8. The route logs safe operational fields and middleware adds `X-Request-ID` and `Server-Timing`.
 
-### Strategy
+The entire single request has a 50-second application timeout, shorter than Cloud Run's
+60-second timeout. This leaves time to return the documented `504` envelope.
 
-The provider protocol is also a Strategy boundary: the extraction service can invoke any conforming OCR strategy. Only Google Vision is implemented because a second adapter without a real use case would add maintenance without value.
+## Batch request
 
-### Central error translation
+A batch contains one to five repeated `images` fields. Each image is still limited to 10 MiB,
+and validated image data is limited to 25 MiB for the whole request.
 
-Validation and infrastructure layers raise typed `AppError` subclasses. Global FastAPI handlers convert those errors, FastAPI validation failures, Starlette HTTP errors, and unexpected exceptions into one public JSON envelope. Google exception messages never cross the boundary.
+Validation happens independently, so a corrupt item does not discard valid items. Valid images
+run behind `asyncio.Semaphore(2)`, which permits only two simultaneous Vision calls from one
+batch. Results are written into their original positions and remain ordered even if later calls
+finish first. A 50-second deadline covers validation and OCR; unfinished items become per-item
+`504` results. A structurally valid batch returns HTTP `200`, and each item reports its own
+`success` and `status_code`.
 
-### Bulkheads
+## Vision behavior
 
-The service limits pressure at several levels:
+The code uses `DOCUMENT_TEXT_DETECTION` because it is designed for document-style OCR and
+returns the page/block/paragraph/word/symbol hierarchy needed for confidence calculation. One
+`ImageAnnotatorAsyncClient` is created during FastAPI lifespan and reused by every request in the
+process.
 
-- Request bodies are bounded before multipart parsing can consume uncontrolled memory.
-- Each image is limited to 10 MiB and 40 megapixels decoded.
-- A batch contains at most five images and 25 MiB of image data.
-- Only two Vision operations run concurrently inside one batch.
-- Cloud Run handles at most eight requests per instance and scales to at most five instances.
-- The staged Cloud Armor policy limits requests per source IP at the edge.
+One initial request may be followed by two retries. Deadline, service-unavailable, and internal
+server failures are transient. Retries use short exponential backoff plus jitter. Quota,
+authentication, and invalid-request failures are returned immediately because retrying them in
+the same request would not fix them. Google exception details are never sent to clients.
 
-These are practical cost and memory boundaries, not guarantees of fair use or protection from a distributed attack.
-
-## Why these tools and libraries
-
-| Choice | Why it fits | Main tradeoff |
-|---|---|---|
-| Python 3.12 | Strong async ecosystem, type annotations, mature Google client libraries, and fast delivery for a compact service | CPU-heavy image transformations would need careful profiling or native workers |
-| FastAPI | Native ASGI, typed request/response integration, lifespan hooks, dependency-friendly app factories, and OpenAPI generation | Multipart parsing still needs explicit body guards and default validation errors need translation |
-| Pydantic and Pydantic Settings | One typed definition for public DTO validation and environment configuration | Models add a serialization layer and settings lists/complex values need deliberate environment encoding |
-| Google Cloud Vision | Managed OCR handles rotation, poor images, documents, and handwriting without maintaining OCR models. `DOCUMENT_TEXT_DETECTION` exposes page/block/paragraph/word/symbol hierarchy used for confidence | Network dependency, quotas, per-unit cost, vendor coupling, and nondeterministic model output |
-| `ImageAnnotatorAsyncClient` | Does not block the ASGI event loop while waiting on Vision; one client is reused for connection pooling | Async lifecycle and retry cancellation require more care than a one-shot synchronous client |
-| Pillow | Decodes actual content, identifies format independently of filename/MIME, verifies corruption, and exposes dimensions/mode without external binaries | Decoding untrusted images requires explicit byte and decompression limits |
-| Uvicorn | Small production ASGI server, supports graceful process shutdown, and honors Cloud Run's `$PORT` | One worker means capacity is managed through async concurrency and Cloud Run scaling rather than local multiprocessing |
-| `uv` and `uv.lock` | Fast, exact environment synchronization and a committed cross-platform lockfile; the same resolver is used locally, in CI, and in Docker | Team members must install `uv` instead of using only stock `pip` |
-| Ruff | One fast tool covers formatting, import order, and common correctness rules | It intentionally does not replace deep type or semantic analysis |
-| mypy strict mode | Checks protocol conformance and layer boundaries before runtime | Third-party libraries with incomplete typing need narrowly scoped overrides |
-| pytest, pytest-asyncio, HTTPX/TestClient | Tests async services, HTTP contracts, middleware, concurrency, and failure mapping without a running server | The fake provider cannot prove real Vision quality; that needs opt-in integration tests |
-| Docker multi-stage build | Produces a repeatable, minimal runtime with no compiler or development dependencies and runs as a non-root user | Container builds are slower than direct source deployment and base images must be maintained |
-| Cloud Run | Stateless HTTPS container hosting, scale-to-zero, revision rollbacks, managed identity, and configurable concurrency/instance ceilings | Cold starts, request-duration limits, and no local durable state |
-| Artifact Registry | Regional immutable image storage integrated with Cloud Run and Google IAM | Storage and network usage can incur cost; old images need lifecycle management |
-| GitHub Actions + WIF | Builds each commit in a clean runner and exchanges GitHub OIDC identity for short-lived Google credentials instead of storing a JSON key | IAM/OIDC setup is more involved than a long-lived key and repository claim constraints must be correct |
-| Firebase Hosting | Simple global static hosting, managed TLS, custom domains, and no frontend build pipeline | The current Cloud Run rewrite can bypass a separately staged Cloud Armor edge until the final cutover |
-| External Application Load Balancer + Cloud Armor | Provides a fixed anycast IP, managed TLS termination, centralized logs, and distributed per-IP throttling before Cloud Run | Adds fixed monthly cost, DNS/certificate setup, and more infrastructure than the evaluator-scale API strictly needs |
-
-Google documents `DOCUMENT_TEXT_DETECTION` as the OCR mode optimized for dense text and document hierarchy in the [Vision OCR guide](https://docs.cloud.google.com/vision/docs/ocr). `uv`'s lock/sync behavior is described in its [project synchronization guide](https://docs.astral.sh/uv/concepts/projects/sync/). Google recommends WIF for deployment pipelines to avoid service-account keys in the [pipeline federation guide](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
-
-## Request processing
-
-### Single image
-
-1. `RequestBodyLimitMiddleware` checks `Content-Length` when present and also counts streamed ASGI body chunks, so chunked requests cannot evade the limit.
-2. FastAPI parses the multipart body into an `UploadFile`. The route rejects missing or duplicate `image` fields.
-3. `read_validated_image()` reads 64 KiB chunks and stops at the first byte over the configured limit.
-4. Pillow opens bytes from memory, checks the decoded format, checks `width × height`, captures safe metadata, and calls `verify()` to detect corruption.
-5. `ExtractTextService` sends the unchanged validated bytes to the provider. It does not recompress the image or write it to application-managed storage.
-6. The Vision adapter submits one `DOCUMENT_TEXT_DETECTION` feature and maps the canonical `full_text_annotation.text`.
-7. The service optionally normalizes Unicode, line endings, and repeated horizontal whitespace in a separate field; raw OCR text remains untouched.
-8. Pydantic serializes the stable success response. Middleware adds `X-Request-ID` and `Server-Timing`.
-
-The `UploadFile` may use Starlette's temporary spooling while multipart data is parsed, but application code never creates a persistent image file. Both validation and batch cleanup close uploads on success and failure paths.
-
-### Batch
-
-1. The route requires one to five repeated `images` fields.
-2. Known upload sizes are checked before decoding; measured validated sizes are checked again.
-3. Every image is validated independently. Validation failures become ordered per-item results.
-4. Valid images are processed behind an `asyncio.Semaphore(2)`.
-5. Results are written into preallocated positions, preserving input order even when operations complete out of order.
-6. A 50-second `asyncio.timeout()` applies to the whole batch. Unfinished tasks are cancelled and mapped to per-item `504` results.
-7. A structurally valid batch returns HTTP `200`; clients inspect each item's `success` and `status_code`.
-
-This partial-success contract prevents one corrupt image from discarding unrelated successful OCR work.
-
-## Confidence calculation
-
-Vision returns confidence at word level and exposes the number of symbols in each word. The adapter calculates a symbol-count-weighted mean:
+Confidence is the symbol-count-weighted mean of available word confidences:
 
 ```text
-confidence = Σ(word confidence × symbol count) / Σ(symbol count)
+confidence = Σ(word confidence × number of symbols) / Σ(number of symbols)
 ```
 
-Longer words therefore contribute proportionally more than one-character words. The result is clamped to `[0.0, 1.0]`. Missing text or missing confidence yields `0.0` rather than inventing certainty.
+The result is clamped to 0–1. No detected text returns an empty string and `0.0` confidence.
 
-## Retry and timeout policy
+## Error handling
 
-One initial Vision request can be followed by at most two retries. `ServiceUnavailable` and internal server errors are retried with bounded exponential backoff plus jitter. Deadline errors are retried until the attempt budget is exhausted, then become `ocr_deadline_exceeded`. Quota exhaustion and too-many-request failures are surfaced immediately as `ocr_unavailable`; retrying them inside the same request would amplify pressure. Authentication and invalid-request errors are not classified as retryable.
+All expected failures use `AppError("error_code")`. `models.ERRORS` is the single place that
+maps each code to its HTTP status and public message. A FastAPI handler converts it to:
 
-The roughly 20-second deadline is applied per attempt by the Google client. The outer Cloud Run timeout is 60 seconds, and the batch use case imposes a shorter 50-second budget so the application can still return a controlled response.
+```json
+{
+  "success": false,
+  "error": {"code": "corrupt_image", "message": "The image is corrupt or unreadable."},
+  "processing_time_ms": 3
+}
+```
 
-## Lifecycle and resource model
+FastAPI validation errors, unknown routes, wrong HTTP methods, and unexpected exceptions also
+go through the same envelope. Unexpected stack traces stay in server logs, while the response
+uses `internal_error`.
 
-FastAPI lifespan creates exactly one `ImageAnnotatorAsyncClient` per Uvicorn process and closes its transport during graceful shutdown. Cloud Run runs one worker, so there is one reusable client per instance. This avoids reconnecting on every request and makes ownership explicit.
+## Security, privacy, and resource limits
 
-At configured maxima, one instance may receive eight concurrent HTTP requests. A single request can retain up to 10 MiB of source bytes; a batch can retain up to 25 MiB plus decoded-image/library overhead. The 512 MiB instance limit is intentionally conservative for current traffic but should be load-tested before increasing batch frequency or Cloud Run concurrency.
+- Uploaded bytes and OCR text are never logged or retained.
+- Filenames, MIME types, extensions, EXIF, GPS, and camera data are not trusted or exposed.
+- Both request transport size and decoded pixel count are bounded.
+- Upload handles close on success, validation failure, batch rejection, and timeout.
+- Cloud Run uses a dedicated runtime account rather than the default compute identity.
+- GitHub deployment uses OIDC/WIF; no service-account JSON key exists in the repository.
+- Cloud Run concurrency 8 and maximum 5 instances bound resource use and cost growth.
 
-## Observability and privacy
+Starlette may spool a multipart upload to an operating-system temporary file while parsing it.
+Application code creates no persistent file and keeps no reference after the request.
 
-- Every response gets an `X-Request-ID`; a client-supplied ID is accepted only up to 128 characters.
-- `Server-Timing` reports application time to clients.
-- Completion logs contain event name, status, latency, retry count, and batch counts.
-- Failure logs contain only a safe error class; unexpected errors retain server-side stack traces.
-- Image bytes, filenames, OCR text, EXIF, and user-provided metadata are not logged.
-- There is no database, object store, queue, cache, or analytics pipeline in the application path.
+## Why these tools were chosen
 
-Cloud Logging captures container stdout/stderr. Correlation IDs are response headers today; they are not yet injected into every structured log event, which is a known observability improvement.
+| Tool | Reason | Cost or tradeoff |
+|---|---|---|
+| Python 3.12 | Clear async code, strong typing, mature Google SDK and image libraries. | Image work must be moved off the event loop. |
+| FastAPI + Uvicorn | Compact ASGI API, response validation, lifespan management, and OpenAPI. | Multipart/body protection still needs explicit middleware. |
+| Google Cloud Vision | Managed rotation, handwriting, and degraded-image OCR without shipping a model. | Network latency, quotas, cost, and vendor dependency. |
+| Pillow | Validates decoded content instead of trusting file names or MIME types. | Untrusted decoding requires byte and pixel limits. |
+| Pydantic Settings | One typed source for environment configuration and response schemas. | Adds model serialization overhead. |
+| `uv` + `uv.lock` | Fast, reproducible installs locally, in CI, and in Docker. | Contributors must install `uv`. |
+| Ruff + strict mypy | Fast formatting/linting plus static type checks. | Type overrides are needed for a few third-party APIs. |
+| pytest + HTTPX | Tests async functions and complete HTTP behavior with a tiny fake OCR function. | Offline tests cannot prove OCR quality. |
+| Docker | Gives Cloud Run the same reproducible non-root artifact tested in CI. | Adds a build step and image maintenance. |
+| Cloud Run | Managed HTTPS, scale-to-zero, instance limits, identities, and revision rollback. | Cold starts and no durable local state. |
+| GitHub Actions + WIF | Clean builds and keyless short-lived deployment credentials. | Initial IAM/OIDC setup is more involved. |
+| Firebase Hosting | Simple static hosting, managed TLS, custom domain, and no frontend build tool. | Current API rewrite bypasses the staged Armor edge. |
 
-## Testing strategy
+## Testing
 
-The app factory and provider port keep ordinary tests offline:
+The offline suite passes an async fake function to `create_app(ocr=...)`. It covers the response
+contract, status codes, multipart edge cases, exact size boundaries, decoded formats,
+corruption, timeouts, batch ordering/concurrency, confidence math, and retry classification.
+CI requires Ruff, strict mypy, at least 85% application coverage, and a Docker build.
 
-- API tests lock success/error envelopes, headers, OpenAPI, options, and multipart edge cases.
-- Validation tests cover the exact byte boundary, first byte over, corruption, decoded dimensions, and content/extension mismatch.
-- Service tests cover normalization and timing.
-- Batch tests cover ordering, partial failures, combined limits, two-call concurrency, timeout cancellation, and provider failures.
-- Vision tests cover weighted confidence, empty annotations, response mapping, and client shutdown.
-- CI runs lock verification, Ruff formatting/lint, strict mypy, pytest with an 85% coverage gate, Docker build, and container import smoke testing.
+The opt-in integration suite calls a real deployed revision and checks clean, rotated,
+low-contrast, handwritten, blurred, 17-degree rotated, blank, and unsupported fixtures. The
+manual production workflow runs it after deployment:
 
-The current fake-provider suite verifies deterministic behavior but does not replace opt-in real-project OCR quality tests for rotation, handwriting, poor contrast, or multilingual images.
+```bash
+OCR_INTEGRATION_BASE_URL=https://your-service-url \
+  uv run pytest tests/test_integration.py -m integration --no-cov
+```
 
-## Limitations and non-goals
+## Known limitations
 
-- The service is unauthenticated and public. It has no user accounts, API keys, per-customer quotas, or audit ownership.
-- Current API traffic bypasses the staged Cloud Armor load balancer through Firebase Hosting; rate rules are preview-only until DNS and ingress are cut over.
-- Per-IP rate limits cannot distinguish users behind a shared NAT and can be distributed across many source IPs.
-- No result cache exists, so identical images consume another Vision unit.
-- There is no durable job state. Batch requests are synchronous and limited to five images.
-- Text language is not forced; the project test scope is English, but Vision may infer other languages.
-- GIF processing considers only the first frame.
-- Orientation correction, deskewing, denoising, contrast enhancement, and recompression are delegated to Vision; original bytes are sent unchanged.
-- Metadata intentionally excludes EXIF, GPS, camera model, and other identifying fields.
-- OCR quality and confidence are provider estimates, not guarantees of correctness.
-- The application does not perform malware scanning; it only decodes supported image formats under bounded size/dimension rules.
-- Cloud Run scale-to-zero can introduce a cold-start delay.
-- The external load balancer and Cloud Armor add fixed cost once made authoritative, even at low traffic.
+- The API is public and unauthenticated. It has no user accounts or per-customer quotas.
+- Cloud Armor rate rules are provisioned in preview but not enforced on the active path.
+- There is no cache, so identical images cause another Vision request.
+- Batch processing is synchronous and capped at five images and 25 MiB combined.
+- GIF OCR uses only the first frame.
+- Deskewing, denoising, contrast enhancement, and orientation handling are delegated to Vision.
+- OCR text and confidence are model estimates, not correctness guarantees.
+- Cloud Run scale-to-zero can add cold-start latency.
+- The 512 MiB instance size should be load-tested if batch traffic becomes frequent.
 
-## What was intentionally avoided
-
-There is no repository abstraction because there is no persistence. There is no event bus, queue, factory hierarchy, DI framework, microservice split, or second OCR adapter because none currently solves a real requirement. The modular monolith keeps boundaries visible while allowing one process, one deployment unit, and straightforward local tests.
-
-Future features should introduce infrastructure only when their requirements demand it—for example, Firestore for a versioned OCR cache, object storage and a queue for asynchronous large jobs, or authentication when per-user quotas or private documents become necessary.
+The service should stay flat unless a real feature forces a new boundary. For example,
+persistence would justify a storage module, and a second OCR engine would justify a provider
+interface. Neither abstraction exists pre-emptively.

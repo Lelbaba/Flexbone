@@ -130,7 +130,7 @@ uv run pytest
 docker build -t flexbone-ocr:local .
 ```
 
-The ordinary test suite injects a fake OCR provider, so it should pass before Vision or Cloud Run is configured.
+The ordinary test suite injects a fake OCR function, so it should pass before Vision or Cloud Run is configured.
 
 For a real local OCR call, enable Vision and start Uvicorn:
 
@@ -241,7 +241,8 @@ The workflow:
 5. Pushes it to Artifact Registry.
 6. Deploys one CPU, 512 MiB, concurrency 8, min instances 0, max instances 5, and a 60-second request timeout.
 7. Assigns the dedicated runtime service account.
-8. Calls `/health` on the resulting service URL.
+8. Calls `/health`, then runs real OCR checks for clean, rotated, low-contrast, handwritten,
+   degraded, blank, unsupported, and HTTP-error cases against the resulting service URL.
 
 Inspect the result:
 
