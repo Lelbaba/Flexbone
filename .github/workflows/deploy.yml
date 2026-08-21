@@ -33,10 +33,9 @@ jobs:
           gcloud run deploy flexbone-ocr --image "$IMAGE" --region "$REGION" \
             --service-account "ocr-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
             --cpu 1 --memory 512Mi --concurrency 8 --min 0 --max 5 --timeout 60 \
-            --no-invoker-iam-check --quiet
+            --default-url --no-invoker-iam-check --quiet
           URL="$(gcloud run services describe flexbone-ocr --region "$REGION" --format='value(status.url)')"
-          curl --fail --retry 5 "$URL/healthz"
+          curl --fail --retry 5 "$URL/health"
         env:
           REGION: ${{ vars.GCP_REGION }}
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-

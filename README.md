@@ -18,7 +18,7 @@ Extract text (maximum image size: exactly 10 MiB):
 curl -F 'image=@sample.jpg;type=image/jpeg' http://localhost:8000/extract-text
 ```
 
-Success returns `{"success":true,"text":"...","confidence":0.95,"processing_time_ms":123}`. A readable JPEG containing no text is also successful, with empty text and zero confidence. `/healthz` is a local liveness check and never calls Vision. Interactive OpenAPI documentation is at `/docs`.
+Success returns `{"success":true,"text":"...","confidence":0.95,"processing_time_ms":123}`. A readable JPEG containing no text is also successful, with empty text and zero confidence. `/health` is the public liveness check and never calls Vision; `/healthz` remains a local alias because Cloud Run reserves paths ending in `z`. Interactive OpenAPI documentation is at `/docs`.
 
 Errors always use `{"success":false,"error":{"code":"...","message":"..."},"processing_time_ms":3}`:
 
@@ -41,7 +41,7 @@ uv run mypy
 uv run pytest
 docker build -t flexbone-ocr .
 docker run --rm -p 8080:8080 -e GOOGLE_APPLICATION_CREDENTIALS=/adc.json -v "$HOME/.config/gcloud/application_default_credentials.json:/adc.json:ro" flexbone-ocr
-curl http://localhost:8080/healthz
+curl http://localhost:8080/health
 ```
 
 The multi-stage image runs as a non-root user, uses one Uvicorn worker, honors `$PORT`, and constructs one async Vision client per process. The application uses API, application-service, domain port, validation, and infrastructure-adapter layers. Confidence is a symbol-count-weighted mean of available word confidences.
@@ -63,4 +63,3 @@ gcloud run services update-traffic flexbone-ocr --region asia-south1 --to-revisi
 The final public URL is emitted by the deployment; record it here after provisioning: **not yet provisioned**.
 
 Troubleshooting: verify ADC and `vision.googleapis.com` for 503s; inspect structured Cloud Run logs by request ID; confirm the runtime service account has `roles/serviceusage.serviceUsageConsumer`; and verify the upload is actual JPEG data, regardless of its extension or declared MIME type.
-

@@ -83,7 +83,8 @@ def create_app(
         logger.exception(json.dumps({"event": "request_failed", "error_class": type(exc).__name__}))
         return _error(AppError(), getattr(request.state, "started", time.perf_counter()))
 
-    @app.get("/healthz", response_model=HealthResponse)
+    @app.get("/health", response_model=HealthResponse)
+    @app.get("/healthz", response_model=HealthResponse, include_in_schema=False)
     async def health() -> HealthResponse:
         return HealthResponse()
 

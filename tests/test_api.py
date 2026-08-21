@@ -2,9 +2,10 @@ from fastapi.testclient import TestClient
 
 
 def test_health(client: TestClient) -> None:
-    response = client.get("/healthz")
-    assert response.json() == {"status": "ok"}
-    assert response.headers["x-request-id"]
+    for path in ("/health", "/healthz"):
+        response = client.get(path)
+        assert response.json() == {"status": "ok"}
+        assert response.headers["x-request-id"]
 
 
 def test_extract_success(client: TestClient, jpeg: bytes) -> None:
