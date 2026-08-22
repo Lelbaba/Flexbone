@@ -8,12 +8,11 @@ A stateless FastAPI service that validates image uploads and sends their origina
 |---|---|
 | Browser tester | <https://ocr.lelbaba.top> |
 | API | <https://api.ocr.lelbaba.top> |
-| Direct Cloud Run service | <https://flexbone-ocr-dobv35r4bq-el.a.run.app> |
 | API guide | <https://api.ocr.lelbaba.top/docs> |
 | OpenAPI schema | <https://api.ocr.lelbaba.top/openapi.json> |
 | Health check | <https://api.ocr.lelbaba.top/health> |
 
-The API currently reaches Cloud Run through a Firebase Hosting rewrite. A global external Application Load Balancer and Cloud Armor policy are provisioned with rate-limit rules in preview, but the final API DNS and ingress cutover has not yet been applied. See [Infrastructure setup](docs/INFRASTRUCTURE.md) for the exact topology and cutover procedure.
+The frontend is served by Firebase Hosting. The API reaches Cloud Run only through a global HTTPS load balancer and enforced Cloud Armor per-IP rate limits. Firebase has no API rewrite, Cloud Run accepts only load-balanced/internal ingress, and its direct URL is disabled. See [Infrastructure setup](docs/INFRASTRUCTURE.md) for the complete topology.
 
 ## Requirements
 
@@ -71,6 +70,7 @@ The application reads configuration from `OCR_`-prefixed environment variables:
 | `OCR_REQUEST_TIMEOUT_SECONDS` | `50` | Whole single-image request budget |
 | `OCR_VISION_TIMEOUT_SECONDS` | `20` | Deadline for each Vision attempt |
 | `OCR_VISION_MAX_RETRIES` | `2` | Retries after the initial attempt |
+| `OCR_FRONTEND_ORIGIN` | `https://ocr.lelbaba.top` | Only browser origin allowed by CORS |
 | `OCR_PUBLIC_DOCS_URL` | `https://ocr.lelbaba.top/api-docs.html` | Target of `/docs` |
 
 ## API examples

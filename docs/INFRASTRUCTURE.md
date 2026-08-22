@@ -1,13 +1,13 @@
 # Infrastructure setup
 
-This runbook creates Flexbone OCR from an empty Google Cloud project and connects it to GitHub, Firebase Hosting, Cloud Run, Cloud Vision, and optional edge rate limiting. Commands assume Bash and are written so values are supplied through explicit variables.
+This runbook creates Flexbone OCR from an empty Google Cloud project and connects it to GitHub, Firebase Hosting, Cloud Run, Cloud Vision, and enforced edge rate limiting. Commands assume Bash and are written so values are supplied through explicit variables.
 
-There are two deployment milestones:
+There are two setup milestones:
 
-1. **Working baseline:** Firebase serves the frontend and proxies API paths to a public Cloud Run service. This is the active production topology as of 2026-08-22.
-2. **Hardened edge:** a global external Application Load Balancer and Cloud Armor become the only public API path. The resources are currently provisioned with preview rules, but DNS and Cloud Run ingress have not been cut over.
+1. **Temporary baseline:** deploy Cloud Run publicly so the service can be tested while the edge is being created.
+2. **Hardened edge:** route the API through a global external Application Load Balancer and enforced Cloud Armor, then close every direct bypass.
 
-Stop at the end of [Baseline acceptance](#9-baseline-acceptance) to reproduce the current working release. The later sections explain the staged edge resources and the conditions required for a safe final cutover.
+Production currently uses the hardened edge. The temporary baseline exists only to make a from-scratch deployment possible before its load balancer and certificate exist.
 
 ## 1. Understand the resources and cost
 
@@ -22,7 +22,7 @@ The baseline creates:
 - One Cloud Run service
 - One Firebase Hosting site and managed certificates for its custom domains
 
-The optional edge adds:
+The protected edge adds:
 
 - One global static IPv4 address
 - One global external managed HTTPS load balancer
@@ -217,22 +217,27 @@ gh variable set DEPLOY_SERVICE_ACCOUNT --repo "$GITHUB_REPOSITORY" \
 gh variable list --repo "$GITHUB_REPOSITORY"
 ```
 
-Push the repository's `main` branch, confirm CI succeeds, then start the manual production workflow:
+Push the repository's `main` branch and confirm CI succeeds. For the first temporary Cloud Run
+revision, build and deploy with public ingress because the load balancer does not exist yet:
 
 ```bash
 git push origin main
-gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref main
-sleep 3
-export DEPLOY_RUN_ID="$(gh run list \
-  --repo "$GITHUB_REPOSITORY" \
-  --workflow deploy.yml \
-  --limit 1 \
-  --json databaseId \
-  --jq '.[0].databaseId')"
-gh run watch "$DEPLOY_RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
+gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+export IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:bootstrap"
+docker build --tag "$IMAGE" .
+docker push "$IMAGE"
+gcloud run deploy "$SERVICE" \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --image "$IMAGE" \
+  --service-account "ocr-runtime@$PROJECT_ID.iam.gserviceaccount.com" \
+  --cpu 1 --memory 512Mi --concurrency 8 --min 0 --max 5 --timeout 60 \
+  --ingress all --default-url --no-invoker-iam-check
+export CLOUD_RUN_URL="$(gcloud run services describe "$SERVICE" \
+  --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
 ```
 
-The workflow:
+The normal production workflow is used after the edge cutover. It:
 
 1. Obtains a GitHub OIDC token.
 2. Exchanges it through WIF to impersonate `ocr-deployer`.
@@ -244,7 +249,7 @@ The workflow:
 8. Calls `/health`, then runs real OCR checks for clean, rotated, low-contrast, handwritten,
    degraded, blank, unsupported, and HTTP-error cases against the resulting service URL.
 
-Inspect the result:
+Test the temporary revision:
 
 ```bash
 export CLOUD_RUN_URL="$(gcloud run services describe "$SERVICE" \
@@ -256,14 +261,8 @@ curl -F 'image=@samples/normal.jpg;type=image/jpeg' \
   "$CLOUD_RUN_URL/extract-text"
 ```
 
-For a local manual deployment instead of GitHub Actions:
-
-```bash
-PROJECT_ID="$PROJECT_ID" REGION="$REGION" REPOSITORY="$REPOSITORY" \
-SERVICE="$SERVICE" bash scripts/deploy.sh
-```
-
-This fallback uses your local Docker and gcloud credentials; it is not the normal production path.
+After cutover, `scripts/deploy.sh` is the local alternative to GitHub Actions and preserves the
+protected ingress settings.
 
 ## 8. Configure Firebase Hosting and custom domains
 
@@ -273,7 +272,7 @@ Add Firebase resources to the existing Google Cloud project:
 firebase projects:addfirebase "$PROJECT_ID"
 ```
 
-If the project is already Firebase-enabled, the command can report that no change is needed. Confirm `firebase.json` points to the correct Cloud Run service and region. Its active rewrite sends unmatched Hosting paths to `flexbone-ocr` in `asia-south1`; edit those values before deployment if you chose different identifiers.
+If the project is already Firebase-enabled, the command can report that no change is needed. `firebase.json` serves only static files and deliberately contains no Cloud Run rewrite.
 
 Deploy the six static assets under `hosting/`:
 
@@ -285,10 +284,10 @@ Verify the default Hosting URL:
 
 ```bash
 curl --compressed "https://$PROJECT_ID.web.app/" | grep 'Flexbone OCR'
-curl "https://$PROJECT_ID.web.app/health"
+test "$(curl -s -o /dev/null -w '%{http_code}' "https://$PROJECT_ID.web.app/health")" = 404
 ```
 
-The first request is served from static Hosting. `/health`, `/extract-text`, `/extract-text/batch`, `/openapi.json`, and `/docs` have no matching static file, so the catch-all rewrite forwards them to Cloud Run.
+The frontend JavaScript calls `https://API_DOMAIN` explicitly. FastAPI allows CORS only from `https://FRONTEND_DOMAIN` and does not allow credentials.
 
 ### Frontend custom domain
 
@@ -308,21 +307,11 @@ dig +short CNAME "$FRONTEND_DOMAIN"
 curl --compressed "https://$FRONTEND_DOMAIN/" | grep 'Flexbone OCR'
 ```
 
-### Baseline API custom domain
+### API custom domain
 
-Repeat the Firebase custom-domain process for `API_DOMAIN`. In the baseline topology both custom domains point to the same Hosting site. Static files are available at either hostname, while API paths are forwarded through the Cloud Run rewrite.
+Do not add `API_DOMAIN` to Firebase Hosting. It will point to the load balancer in the edge-cutover section.
 
-Verify:
-
-```bash
-dig +short CNAME "$API_DOMAIN"
-curl "https://$API_DOMAIN/health"
-curl -F 'image=@samples/normal.jpg;type=image/jpeg' \
-  "https://$API_DOMAIN/extract-text"
-curl -I "https://$API_DOMAIN/docs"
-```
-
-The final command should return a `307` redirect to the human API guide on the frontend domain. If a newly activated custom domain shows Firebase's stale “Site Not Found” page only for browsers, redeploy Hosting once to invalidate compressed CDN variants:
+After the edge is active, `/docs` returns a `307` redirect to the human API guide on the frontend domain. If the frontend custom domain shows Firebase's stale “Site Not Found” page only for browsers, redeploy Hosting once to invalidate compressed CDN variants:
 
 ```bash
 firebase deploy --only hosting --project "$PROJECT_ID"
@@ -333,24 +322,24 @@ firebase deploy --only hosting --project "$PROJECT_ID"
 Run this matrix before considering the baseline complete:
 
 ```bash
-curl --fail "https://$API_DOMAIN/health"
+curl --fail "$CLOUD_RUN_URL/health"
 
 curl --fail \
   -F 'image=@samples/normal.jpg;type=image/jpeg' \
-  "https://$API_DOMAIN/extract-text"
+  "$CLOUD_RUN_URL/extract-text"
 
 curl --fail \
   -F 'image=@samples/blank.jpg;type=image/jpeg' \
-  "https://$API_DOMAIN/extract-text"
+  "$CLOUD_RUN_URL/extract-text"
 
 curl --fail \
   -F 'image=@samples/unsupported.bmp;type=image/bmp' \
-  "https://$API_DOMAIN/extract-text" || test "$?" -eq 22
+  "$CLOUD_RUN_URL/extract-text" || test "$?" -eq 22
 
 curl --fail \
   -F 'images=@samples/normal.jpg' \
   -F 'images=@samples/rotated.jpg' \
-  "https://$API_DOMAIN/extract-text/batch"
+  "$CLOUD_RUN_URL/extract-text/batch"
 ```
 
 Also verify:
@@ -364,9 +353,9 @@ Also verify:
 - Cloud Logging contains request metadata but not image bytes or OCR text.
 - The GitHub deployment stores no JSON service-account key.
 
-At this milestone, the service is public and functional, but direct Cloud Run and Firebase rewrite paths can bypass the staged edge policy.
+At this temporary milestone, the service is public and functional. Continue immediately to the edge sections before treating it as production-ready.
 
-## 10. Provision the optional edge in preview
+## 10. Provision the edge in preview
 
 The edge script requires `jq` and permissions to create Compute Engine networking, Certificate Manager, and Cloud Armor resources. It assumes Cloud Run already exists in the same region.
 
@@ -433,11 +422,9 @@ Generate harmless malformed POST requests above the preview thresholds and inspe
 
 The load balancer uses a serverless NEG, the supported bridge from an external Application Load Balancer to Cloud Run described in Google's [serverless load-balancer guide](https://docs.cloud.google.com/load-balancing/docs/https/setting-up-https-serverless).
 
-## 11. Final edge cutover gate
+## 11. Final edge cutover
 
-Do **not** perform this section on the current commit without completing the application-routing prerequisites below. The repository currently uses relative frontend API calls and a Firebase Cloud Run rewrite. Removing that rewrite or restricting Cloud Run before changing the frontend would break browser OCR.
-
-Before cutover, a release must provide all of the following:
+The current repository satisfies these application-routing prerequisites:
 
 1. The Firebase frontend calls `https://API_DOMAIN` explicitly rather than its own origin.
 2. FastAPI allows CORS only from `https://FRONTEND_DOMAIN` for the required methods and headers; credentials remain disabled because the API has no authentication.
@@ -445,7 +432,7 @@ Before cutover, a release must provide all of the following:
 4. The production workflow and `scripts/deploy.sh` preserve `--ingress internal-and-cloud-load-balancing --no-default-url` on every later deployment.
 5. Direct load-balancer tests pass for health, single OCR, batch OCR, validation errors, and `/docs`.
 
-Only after those prerequisites are deployed:
+After those prerequisites are deployed:
 
 1. Remove the baseline `API_DOMAIN → PROJECT_ID.web.app` CNAME.
 2. Add an `A` record `API_DOMAIN → LOAD_BALANCER_IP`.
@@ -482,6 +469,13 @@ Google recommends `internal-and-cloud-load-balancing` when internet traffic must
 - Ten permitted single requests are followed by edge-generated `429` responses in the same window.
 - Two permitted batch requests are followed by an edge-generated `429` response in the same window.
 - `/health` remains available because it does not match the rate rules.
+
+Run the normal production workflow once the protected hostname is live. Every later deployment
+preserves restricted ingress and tests real OCR through the load balancer:
+
+```bash
+gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY" --ref main
+```
 
 Cloud Armor's generated `429` is an edge response and therefore does not use the FastAPI JSON error envelope.
 
@@ -593,7 +587,7 @@ Every production deployment pushes an immutable commit-SHA image. Configure an A
 
 ### Load balancer works but direct Cloud Run also works
 
-This is expected before the final gate. After cutover, set ingress to `internal-and-cloud-load-balancing`, disable the default URL, remove Firebase rewrites, and ensure future deployments preserve those settings.
+This means the cutover is incomplete. Set ingress to `internal-and-cloud-load-balancing`, disable the default URL, remove Firebase rewrites, and ensure future deployments preserve those settings.
 
 ## Reference documentation
 

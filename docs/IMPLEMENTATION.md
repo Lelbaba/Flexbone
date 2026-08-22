@@ -10,10 +10,11 @@ For cloud setup commands, see [Infrastructure setup](INFRASTRUCTURE.md).
 
 ![Flexbone OCR overall system architecture](assets/system-architecture.svg)
 
-Solid arrows are the active production path. The amber dotted path is a provisioned load
-balancer and Cloud Armor configuration that is not yet authoritative. Today both custom domains
-use Firebase Hosting; API paths are rewritten to Cloud Run. Cloud Run calls Vision with its
-dedicated runtime identity and writes safe events to Cloud Logging.
+The frontend domain uses Firebase Hosting. The API domain resolves to the global HTTPS load
+balancer, where Cloud Armor enforces per-IP limits before requests reach Cloud Run. Firebase has
+no API rewrite, and Cloud Run rejects traffic that does not arrive through the load balancer or
+an internal source. Cloud Run calls Vision with its dedicated runtime identity and writes safe
+events to Cloud Logging.
 
 GitHub Actions uses short-lived credentials from Workload Identity Federation. It builds an
 immutable commit-SHA image, stores it in Artifact Registry, deploys a Cloud Run revision, and
@@ -46,7 +47,7 @@ Flexbone/
 ├── docs/                     Implementation and infrastructure guides
 ├── .github/workflows/        CI and manual production deployment
 ├── Dockerfile                Non-root Cloud Run container
-├── firebase.json             Hosting files and Cloud Run rewrite
+├── firebase.json             Static Hosting configuration with no API rewrite
 ├── pyproject.toml            Package and quality-tool settings
 └── uv.lock                   Exact dependency lock
 ```
@@ -178,7 +179,7 @@ Application code creates no persistent file and keeps no reference after the req
 | Docker | Gives Cloud Run the same reproducible non-root artifact tested in CI. | Adds a build step and image maintenance. |
 | Cloud Run | Managed HTTPS, scale-to-zero, instance limits, identities, and revision rollback. | Cold starts and no durable local state. |
 | GitHub Actions + WIF | Clean builds and keyless short-lived deployment credentials. | Initial IAM/OIDC setup is more involved. |
-| Firebase Hosting | Simple static hosting, managed TLS, custom domain, and no frontend build tool. | Current API rewrite bypasses the staged Armor edge. |
+| Firebase Hosting | Simple static hosting, managed TLS, custom domain, and no frontend build tool. | The frontend and API are separate origins, so FastAPI needs a narrow CORS policy. |
 
 ## Testing
 
@@ -199,7 +200,7 @@ OCR_INTEGRATION_BASE_URL=https://your-service-url \
 ## Known limitations
 
 - The API is public and unauthenticated. It has no user accounts or per-customer quotas.
-- Cloud Armor rate rules are provisioned in preview but not enforced on the active path.
+- Per-IP limits can group unrelated users behind one NAT and do not identify authenticated users.
 - There is no cache, so identical images cause another Vision request.
 - Batch processing is synchronous and capped at five images and 25 MiB combined.
 - GIF OCR uses only the first frame.
