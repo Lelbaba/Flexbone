@@ -21,15 +21,12 @@ class RequestBodyLimitMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+
         max_bytes = self.path_limits.get(scope.get("path", ""), self.max_bytes)
-        length = dict(scope.get("headers", [])).get(b"content-length")
-        if length:
-            try:
-                if int(length) > max_bytes:
-                    await self._reject(scope, send)
-                    return
-            except ValueError:
-                pass
+        if _content_length_exceeds(scope, max_bytes):
+            await self._reject(scope, send)
+            return
+
         received = 0
 
         async def limited_receive() -> Message:
@@ -39,10 +36,12 @@ class RequestBodyLimitMiddleware:
                 received += len(message.get("body", b""))
                 if received > max_bytes:
                     raise AppError("request_too_large")
+
             return message
 
         try:
             await self.app(scope, limited_receive, send)
+
         except AppError as exc:
             if exc.code != "request_too_large":
                 raise
@@ -65,6 +64,18 @@ class RequestBodyLimitMiddleware:
         await response(scope, receive=empty_receive, send=send)
 
 
+def _content_length_exceeds(scope: Scope, max_bytes: int) -> bool:
+    length = dict(scope.get("headers", [])).get(b"content-length")
+    if not length:
+        return False
+
+    try:
+        return int(length) > max_bytes
+
+    except ValueError:
+        return False
+
+
 class RequestContextMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -73,9 +84,11 @@ class RequestContextMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+
         request_id = dict(scope.get("headers", [])).get(b"x-request-id", b"").decode()[:128]
         request_id = request_id or str(uuid.uuid4())
         started = time.perf_counter()
+
         state = scope.setdefault("state", {})
         state["request_id"] = request_id
         state["started"] = started
@@ -85,6 +98,7 @@ class RequestContextMiddleware:
                 headers = MutableHeaders(scope=message)
                 headers["X-Request-ID"] = request_id
                 headers["Server-Timing"] = f"app;dur={(time.perf_counter() - started) * 1000:.1f}"
+
             await send(message)
 
         await self.app(scope, receive, add_headers)

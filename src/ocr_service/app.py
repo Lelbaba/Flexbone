@@ -70,6 +70,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
             deadline_seconds=config.vision_timeout_seconds,
             max_retries=config.vision_max_retries,
         )
+
         yield
         await client.transport.close()  # type: ignore[no-untyped-call]
 
@@ -88,7 +89,9 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
         max_bytes=config.max_request_bytes,
         path_limits={"/extract-text/batch": config.max_batch_request_bytes},
     )
+
     app.add_middleware(RequestContextMiddleware)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[config.frontend_origin],
@@ -100,6 +103,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         _log_failure(request, exc)
+
         return _error(exc, request.state.started)
 
     @app.exception_handler(RequestValidationError)
@@ -108,6 +112,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
             "invalid_batch" if request.url.path == "/extract-text/batch" else "malformed_request"
         )
         _log_failure(request, error)
+
         return _error(error, request.state.started)
 
     @app.exception_handler(StarletteHTTPException)
@@ -117,6 +122,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
         )
         error = AppError(code)
         _log_failure(request, error)
+
         return _error(error, request.state.started)
 
     @app.exception_handler(Exception)
@@ -133,6 +139,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
                 }
             )
         )
+
         return _error(AppError("internal_error"), request.state.started)
 
     @app.get("/health", response_model=HealthResponse)
@@ -171,6 +178,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
             normalize=normalize,
             started=request.state.started,
         )
+
         logger.info(
             json.dumps(
                 {
@@ -184,6 +192,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
                 }
             )
         )
+
         return response
 
     @app.post(
@@ -209,6 +218,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
             normalize=normalize,
             started=request.state.started,
         )
+
         logger.info(
             json.dumps(
                 {
@@ -224,6 +234,7 @@ def create_app(ocr: OCRFunction | None = None, settings: Settings | None = None)
                 }
             )
         )
+
         return response
 
     return app
