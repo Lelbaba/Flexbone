@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
   <title id="title">Flexbone OCR overall system architecture</title>
-  <desc id="desc">Firebase static frontend, protected load balancer and Cloud Armor API path, Cloud Run, Google Vision, logging, and keyless GitHub delivery.</desc>
+  <desc id="desc">Protected load balancer and Cloud Armor API path, Cloud Run, Google Vision, logging, and keyless GitHub delivery.</desc>
   <defs>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
       <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#17231d" flood-opacity="0.08"/>
@@ -21,7 +21,7 @@
 
   <rect width="1600" height="1050" rx="24" fill="#f4f1e8"/>
   <text class="title" x="54" y="62">Flexbone OCR — system architecture</text>
-  <text class="subtitle" x="54" y="88">Static frontend, enforced API edge, managed OCR, and keyless delivery</text>
+  <text class="subtitle" x="54" y="88">Enforced API edge, managed OCR, and keyless delivery</text>
   <g transform="translate(1248 50)">
     <line x1="0" y1="0" x2="34" y2="0" class="line-active"/>
     <text class="badge active" x="47" y="4">ACTIVE</text>
@@ -58,31 +58,21 @@
   <path class="line-active" d="M1130 221H1196"/>
 
   <rect class="zone" x="40" y="338" width="1520" height="420" rx="18"/>
-  <text class="zone-title" x="64" y="367">FRONTEND AND APPLICATION</text>
+  <text class="zone-title" x="64" y="367">API CLIENTS AND APPLICATION</text>
 
-  <rect class="card" x="72" y="412" width="214" height="104" rx="14"/>
-  <circle cx="103" cy="444" r="13" fill="#dce9d0"/>
-  <path d="M97 444h12M103 438v12" stroke="#2e6b4c" stroke-width="2" stroke-linecap="round"/>
-  <text class="label" x="128" y="449">Browser</text>
-  <text class="meta" x="96" y="478">ocr.lelbaba.top</text>
-  <text class="meta" x="96" y="496">Static tester + API calls</text>
+  <rect class="card" x="72" y="494" width="214" height="104" rx="14"/>
+  <rect x="91" y="519" width="25" height="20" rx="4" fill="#dce9d0"/>
+  <path d="M96 544h15" stroke="#2e6b4c" stroke-width="2"/>
+  <text class="label" x="128" y="533">API client</text>
+  <text class="meta" x="96" y="562">curl · SDK · evaluator</text>
+  <text class="meta" x="96" y="580">Any HTTPS caller</text>
 
-  <rect class="card" x="72" y="565" width="214" height="104" rx="14"/>
-  <rect x="91" y="590" width="25" height="20" rx="4" fill="#dce9d0"/>
-  <path d="M96 615h15" stroke="#2e6b4c" stroke-width="2"/>
-  <text class="label" x="128" y="604">API client</text>
-  <text class="meta" x="96" y="633">api.ocr.lelbaba.top</text>
-  <text class="meta" x="96" y="651">curl, SDK, evaluator</text>
-
-  <rect class="card-green" x="366" y="412" width="250" height="257" rx="16"/>
-  <text class="label" x="392" y="447">Firebase Hosting</text>
-  <text class="meta" x="392" y="470">Managed TLS + CDN</text>
-  <rect x="392" y="501" width="198" height="61" rx="11" fill="#fff" stroke="#cbd9bd"/>
-  <text class="label-sm" x="410" y="526">Static frontend</text>
-  <text class="meta" x="410" y="546">HTML · CSS · JavaScript</text>
-  <rect x="392" y="580" width="198" height="61" rx="11" fill="#fff" stroke="#cbd9bd"/>
-  <text class="label-sm" x="410" y="605">Explicit API origin</text>
-  <text class="meta" x="410" y="625">No Cloud Run rewrite</text>
+  <rect class="card-green" x="366" y="470" width="250" height="152" rx="16"/>
+  <text class="label" x="392" y="505">Public API surface</text>
+  <text class="meta" x="392" y="528">api.ocr.lelbaba.top</text>
+  <text class="meta" x="392" y="556">POST /extract-text</text>
+  <text class="meta" x="392" y="576">POST /extract-text/batch</text>
+  <text class="meta" x="392" y="596">GET /health · GET /docs</text>
 
   <rect class="card-dark" x="696" y="392" width="492" height="309" rx="18"/>
   <text class="label-light" x="724" y="429">Cloud Run · FastAPI container</text>
@@ -111,9 +101,9 @@
   <text class="label" x="1294" y="612">Cloud Logging</text>
   <text class="meta" x="1294" y="637">Safe structured events only</text>
 
-  <path class="line-active" d="M286 464H366"/>
-  <text class="path-label" x="302" y="449">HTTPS</text>
-  <path class="line-active" d="M72 617H54V221H72"/>
+  <path class="line-active" d="M286 546H366"/>
+  <text class="path-label" x="302" y="531">HTTPS</text>
+  <path class="line-active" d="M72 546H54V221H72"/>
   <text class="path-label" x="62" y="332">API edge</text>
   <path class="line-active" d="M1336 265V332Q1336 352 1316 352H1100Q1080 352 1080 392"/>
   <path class="line-active" d="M1188 516H1232Q1250 516 1250 486Q1250 470 1268 470"/>
