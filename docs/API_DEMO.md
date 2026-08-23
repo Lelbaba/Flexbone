@@ -8,7 +8,7 @@ Base URL: `https://api.ocr.lelbaba.top`
 
 ```bash
 curl -X POST -F 'image=@samples/normal.jpg;type=image/jpeg' \
-  https://api.ocr.lelbaba.top/extract-text
+  https://api.ocr.lelbaba.top/extract-text | jq
 ```
 
 Input — `samples/normal.jpg`
@@ -32,7 +32,7 @@ Input — `samples/normal.jpg`
 
 ```bash
 curl -X POST -F 'image=@test-images/english-eye-chart.jpg;type=image/jpeg' \
-  'https://api.ocr.lelbaba.top/extract-text?metadata=true&normalize=true'
+  'https://api.ocr.lelbaba.top/extract-text?metadata=true&normalize=true' | jq
 ```
 
 Input — `test-images/english-eye-chart.jpg`
@@ -64,7 +64,7 @@ Input — `test-images/english-eye-chart.jpg`
 
 ```bash
 curl -X POST -F 'image=@samples/rotated.jpg;type=image/jpeg' \
-  'https://api.ocr.lelbaba.top/extract-text?metadata=true'
+  'https://api.ocr.lelbaba.top/extract-text?metadata=true' | jq
 ```
 
 Input — `samples/rotated.jpg`
@@ -95,7 +95,7 @@ Input — `samples/rotated.jpg`
 
 ```bash
 curl -X POST -F 'image=@test-images/english-handwriting.jpg;type=image/jpeg' \
-  'https://api.ocr.lelbaba.top/extract-text?normalize=true'
+  'https://api.ocr.lelbaba.top/extract-text?normalize=true' | jq
 ```
 
 Input — `test-images/english-handwriting.jpg`
@@ -120,7 +120,7 @@ Input — `test-images/english-handwriting.jpg`
 
 ```bash
 curl -X POST -F 'image=@samples/blank.jpg;type=image/jpeg' \
-  https://api.ocr.lelbaba.top/extract-text
+  https://api.ocr.lelbaba.top/extract-text | jq
 ```
 
 Input — `samples/blank.jpg`
@@ -144,7 +144,7 @@ Input — `samples/blank.jpg`
 
 ```bash
 curl -X POST -F 'image=@samples/unsupported.bmp;type=image/bmp' \
-  https://api.ocr.lelbaba.top/extract-text
+  https://api.ocr.lelbaba.top/extract-text | jq
 ```
 
 Input — `samples/unsupported.bmp` (BMP, 640×180, 345,654 bytes)
@@ -168,7 +168,7 @@ Input — `samples/unsupported.bmp` (BMP, 640×180, 345,654 bytes)
 
 ```bash
 curl -X POST -F 'image=@samples/corrupt.jpg;type=image/jpeg' \
-  https://api.ocr.lelbaba.top/extract-text
+  https://api.ocr.lelbaba.top/extract-text | jq
 ```
 
 Input — `samples/corrupt.jpg` (12 bytes, not a decodable image)
@@ -191,7 +191,7 @@ Input — `samples/corrupt.jpg` (12 bytes, not a decodable image)
 ## 8. Missing image field
 
 ```bash
-curl -X POST https://api.ocr.lelbaba.top/extract-text
+curl -X POST https://api.ocr.lelbaba.top/extract-text | jq
 ```
 
 Input — none
@@ -218,7 +218,7 @@ curl -X POST \
   -F 'images=@samples/normal.jpg;type=image/jpeg' \
   -F 'images=@samples/rotated.jpg;type=image/jpeg' \
   -F 'images=@samples/supported.png;type=image/png' \
-  'https://api.ocr.lelbaba.top/extract-text/batch?metadata=true&normalize=true'
+  'https://api.ocr.lelbaba.top/extract-text/batch?metadata=true&normalize=true' | jq
 ```
 
 Input — `samples/normal.jpg`
@@ -301,7 +301,7 @@ curl -X POST \
   -F 'images=@samples/normal.jpg;type=image/jpeg' \
   -F 'images=@samples/corrupt.jpg;type=image/jpeg' \
   -F 'images=@samples/unsupported.bmp;type=image/bmp' \
-  https://api.ocr.lelbaba.top/extract-text/batch
+  https://api.ocr.lelbaba.top/extract-text/batch | jq
 ```
 
 Input — `samples/normal.jpg`
